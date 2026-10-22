@@ -10,6 +10,7 @@ import asyncio
 import json
 import os
 import re
+import time
 import uuid
 from pathlib import Path
 
@@ -35,6 +36,16 @@ class Turn:
         self.answer: asyncio.Future | None = None
         self.task: asyncio.Task | None = None
         self.tool = ""
+        self.args: dict = {}
+        self.elicited = False
+        self.waited = 0.0  # seconds spent waiting for the user to answer a follow-up question
+        self.server_ms = 0.0  # tools/call round trip, excluding connection setup and time waiting for the user
+
+    def trace(self) -> dict:
+        """What actually crossed the wire, shown in the UI's behind-the-scenes panel."""
+        return {"method": "tools/call", "tool": self.tool, "arguments": self.args,
+                "elicited": self.elicited, "server_ms": round(self.server_ms),
+                "protocol": "MCP 2025-11-25 over Streamable HTTP"}
 
 
 TURNS: dict[str, Turn] = {}
@@ -58,14 +69,18 @@ async def _run_tool(turn: Turn, tool: str, args: dict, user_id: str):
         loop = asyncio.get_running_loop()
         turn.answer = loop.create_future()
         await turn.question.put({"message": params.message, "schema": params.requestedSchema})
+        asked_at = time.perf_counter()
         text = await turn.answer
+        turn.waited += time.perf_counter() - asked_at
         content = _answer_from_text(params.requestedSchema, text)
         return ElicitResult(action="accept" if content else "decline", content=content or None)
 
     async with streamablehttp_client(MCP_URL) as (read, write, _):
         async with ClientSession(read, write, elicitation_callback=on_elicit) as session:
             await session.initialize()
+            started = time.perf_counter()
             result = await session.call_tool(tool, {**args, "user_id": user_id})
+            turn.server_ms = max((time.perf_counter() - started - turn.waited) * 1000, 0.0)
             if result.isError:
                 msg = " ".join(getattr(c, "text", "") for c in result.content)
                 return {"error": re.sub(r"^Error executing tool \w+:\s*", "", msg)}
@@ -86,14 +101,16 @@ async def chat(request):
         if r.tool is None:
             return JSONResponse({"session": sid, "speech": r.note, "card": None})
         turn = TURNS[sid] = Turn()
-        turn.tool = r.tool
+        turn.tool, turn.args = r.tool, r.args
         turn.task = asyncio.create_task(_run_tool(turn, r.tool, r.args, user_id))
 
     waiter = asyncio.create_task(turn.question.get())
     done, _ = await asyncio.wait({turn.task, waiter}, timeout=20, return_when=asyncio.FIRST_COMPLETED)
     if waiter in done:  # server asked a follow-up question
         q = waiter.result()
-        return JSONResponse({"session": sid, "speech": q["message"], "card": None, "awaiting_reply": True})
+        turn.elicited = True
+        return JSONResponse({"session": sid, "speech": q["message"], "card": None, "awaiting_reply": True,
+                             "trace": {**turn.trace(), "event": "elicitation/create", "asked": q["message"]}})
     waiter.cancel()
     if turn.task not in done:
         return JSONResponse({"session": sid, "speech": "Sorry, that took too long. Please try again.", "card": None})
@@ -103,8 +120,10 @@ async def chat(request):
     except Exception as e:  # surface tool/transport failures as speech, never a stack trace
         return JSONResponse({"session": sid, "speech": f"Sorry, something went wrong: {e}", "card": None})
     if "error" in data:
-        return JSONResponse({"session": sid, "speech": f"Sorry: {data['error']}", "card": None})
-    return JSONResponse({"session": sid, "speech": data.get("speech", ""), "card": {"tool": turn.tool, **data}})
+        return JSONResponse({"session": sid, "speech": f"Sorry: {data['error']}", "card": None,
+                             "trace": {**turn.trace(), "event": "tool error"}})
+    return JSONResponse({"session": sid, "speech": data.get("speech", ""), "card": {"tool": turn.tool, **data},
+                         "trace": turn.trace()})
 
 
 async def index(_request):
