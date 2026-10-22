@@ -41,6 +41,19 @@ def test_view_speaks_the_host_protocol():
         assert needed in html, needed
 
 
+def test_view_sends_exactly_the_initialize_fields_the_sdk_defines():
+    """McpUiInitializeRequest (ext-apps src/spec.types.ts) is { appInfo, appCapabilities, protocolVersion }.
+
+    An earlier version sent `clientInfo` and `capabilities` and no `appInfo`, which a strict host could reject.
+    """
+    html = CARD.read_text(encoding="utf-8")
+    block = re.search(r"request\('ui/initialize', \{(.*?)\}\)\.then", html, re.S).group(1)
+    for required in ("appInfo", "appCapabilities", "protocolVersion"):
+        assert re.search(rf"\b{required}\s*:", block), f"missing {required}"
+    for wrong in ("clientInfo", "capabilities"):
+        assert not re.search(rf"\b{wrong}\s*:", block), f"{wrong} is not a field of ui/initialize"
+
+
 def test_view_only_trusts_messages_from_its_host():
     assert "ev.source !== parent" in CARD.read_text(encoding="utf-8")
 

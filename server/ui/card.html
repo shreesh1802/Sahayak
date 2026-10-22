@@ -241,11 +241,12 @@
     }
   });
 
-  // The spec text and its own example disagree on the field name (appCapabilities vs capabilities): send both.
+  // Exactly the three fields of McpUiInitializeRequest in the MCP Apps SDK types (src/spec.types.ts):
+  // appInfo, appCapabilities, protocolVersion. (The spec's transport snippet shows other names; the types are authoritative.)
   request('ui/initialize', {
-    protocolVersion: '2026-01-26',
-    appCapabilities: {}, capabilities: {},
-    clientInfo: { name: 'sahayak-card', version: '1.0.0' }
+    appInfo: { name: 'sahayak-card', version: '1.0.0' },
+    appCapabilities: {},
+    protocolVersion: '2026-01-26'
   }).then(function (r) {
     applyContext(r && r.hostContext);
     notify('ui/notifications/initialized');

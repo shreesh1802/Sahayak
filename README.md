@@ -117,8 +117,9 @@ account linking.
   attempt to enable Amazon Bedrock on a new account failed (see the friction log).
 - **Not connected to real Alexa+.** It was tested with the included simulator, not Amazon's simulator or a device.
   In particular the MCP App view has only run in my own host. I built it from the MCP Apps spec (`2026-01-26`),
-  which has internal inconsistencies (for example the view's `initialize` field is named `appCapabilities` in the
-  text and `capabilities` in the example, so the view sends both), and I have not checked it against Amazon's host.
+  which has internal inconsistencies (for example its transport snippet sends `initialize` with `capabilities`, while
+  the text and the SDK's types specify `ui/initialize` with `appInfo` and `appCapabilities`; the view follows the SDK
+  types). I have checked its messages against those types, but I have not run it against Amazon's host.
 - **No capability negotiation for MCP Apps.** The spec says hosts advertise `io.modelcontextprotocol/ui` and servers
   should register UI tools only when it is present. The Python MCP SDK (1.x) has no way for a client to send it, so
   the server always declares the screen and relies on the text fallback for hosts that ignore it.

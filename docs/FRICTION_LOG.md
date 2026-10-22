@@ -61,15 +61,21 @@ Entries are written as they happened. Fields: task, steps, expected vs actual, s
 - **Severity:** medium. **Workaround:** read the spec file directly.
 - **Suggestion:** link the spec file, and a minimal Python server example, from the Alexa+ resources.
 
-## 8. MCP Apps spec contradicts itself in several places
+## 8. MCP Apps spec contradicts itself in several places (checked against the spec file and the SDK types)
 - **Task:** implement the View's `ui/initialize` request and the host's replies.
-- **Actual:** the spec names the field `appCapabilities` in the text but `capabilities` in its JSON example; lists
-  `ui/resource-teardown` as a notification but shows it with an `id`; the CSP example uses `connect-src 'self'` while the
-  stated default is `connect-src 'none'`; and the capability example uses protocol `2024-11-05` while the rest uses
-  `2026-01-26`. The flat `ui/resourceUri` key is deprecated but SDKs still emit it.
-- **Severity:** low to medium. **Workaround:** send both field names, tolerate both message shapes, and emit both the
-  current and the legacy `_meta` key.
-- **Suggestion:** reconcile the examples with the normative text.
+- **Actual** (line numbers are from `specification/2026-01-26/apps.mdx` in the ext-apps repository):
+  1. The spec's transport snippet (lines 461-465) sends method `initialize` with `capabilities` and `clientInfo`, but the
+     text and examples (lines 512, 756-759) and the SDK's `McpUiInitializeRequest` type specify method `ui/initialize`
+     with `appInfo`, `appCapabilities` and `protocolVersion`. My first version followed the snippet's names and omitted
+     the required `appInfo`; it only came to light when I checked the messages against the SDK types.
+  2. `ui/resource-teardown` is described as "Host notifies View" (line 1171) but is shown as a request with an `id` and a
+     response; the text lists `params: { reason }` while the SDK type is `params: {}`.
+  3. The default CSP is `connect-src 'none'` (line 283), but the spec's own "CSP Construction" code (line 1737) produces
+     `connect-src 'self'` when no CSP is declared, which is looser than the stated default.
+- **Severity:** medium for 1 (it produces a View a strict host may reject), low for 2, and medium for 3 (security default).
+- **Workaround:** treat the SDK's `src/spec.types.ts` as authoritative, and keep a test that fixes the field names.
+- **Suggestion:** make the transport snippet match the types, call teardown a request, and make the CSP example use
+  `connect-src` with `'none'` as its fallback, as it already does for `frame-src`.
 
 ## 9. Python MCP SDK cannot advertise the MCP Apps capability
 - **Task:** have the simulator host advertise `io.modelcontextprotocol/ui` so the server can check it.
