@@ -8,8 +8,7 @@
   :root {
     --bg: #0a101c; --bg2: #0e1626; --panel: #121b2e; --panel2: #1a2640; --line: #26324f;
     --text: #e9effc; --muted: #93a1c4; --accent: #2dd4bf; --accent-ink: #04211d;
-    --good: #4ade80; --warn: #fbbf24; --bad: #f87171; --blue: #60a5fa;
-    --radius: 16px;
+    --good: #4ade80; --warn: #fbbf24; --bad: #f87171; --radius: 16px;
   }
   * { box-sizing: border-box; }
   html { overflow-x: hidden; }
@@ -61,30 +60,12 @@
 
   .device { overflow: hidden; border-radius: 22px; border: 2px solid #2b3a5f; background: #0b1324; }
   .bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: #0f1a30; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
-  #card { padding: 18px 18px 16px; min-height: 260px; }
-  .empty { color: var(--muted); padding: 56px 8px; text-align: center; }
-  .empty b { display: block; color: var(--text); font-size: 18px; margin-bottom: 6px; }
-  .enter { animation: pop .25s ease-out; }
-  .big { font-size: 38px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-  .big small { font-size: 15px; font-weight: 500; color: var(--muted); letter-spacing: 0; }
-  .title { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
-  .row { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
-  .row:last-child { border-bottom: 0; }
-  .row span:first-child { color: var(--muted); }
-  .bar2 { display: flex; height: 16px; border-radius: 8px; overflow: hidden; margin: 12px 0 6px; background: var(--panel2); }
-  .bar2 i { display: block; height: 100%; transition: width .5s; }
-  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
-  .legend b { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
-  .verdict { font-size: 30px; font-weight: 800; }
-  .comfortable { color: var(--good); } .tight { color: var(--warn); } .unaffordable { color: var(--bad); }
-  .note { background: #3a2b0a; border: 1px solid #6b4f10; color: #fde68a; border-radius: 10px; padding: 8px 12px; margin-top: 10px; font-size: 14px; }
-  .note.info { background: #0f2a3a; border-color: #1d5473; color: #bae6fd; }
-  .prog { height: 8px; background: var(--panel2); border-radius: 4px; overflow: hidden; margin: 4px 0 10px; }
-  .prog i { display: block; height: 100%; background: var(--accent); transition: width .5s; }
-  .sec { margin: 16px 0 6px; font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
-  .qs { margin: 4px 0 8px; padding-left: 20px; font-size: 14px; } .qs li { margin: 4px 0; }
-  .ok-card { text-align: center; padding: 30px 8px; }
-  .ok-card .tick { width: 54px; height: 54px; border-radius: 50%; background: #14532d; color: var(--good); display: grid; place-items: center; margin: 0 auto 10px; font-size: 28px; }
+  #card { min-height: 260px; background: #0b1324; }
+  .appframe { display: block; width: 100%; height: 260px; border: 0; background: #0b1324; color-scheme: dark; }
+  .host-empty { color: var(--muted); padding: 56px 8px; text-align: center; }
+  .host-empty b { display: block; color: var(--text); font-size: 18px; margin-bottom: 6px; }
+  .host-text { padding: 18px; }
+  .host-text small { display: block; margin-top: 10px; color: var(--muted); font-size: 12px; }
 
   details { border-top: 1px solid var(--line); background: #090f1d; }
   summary { cursor: pointer; padding: 10px 16px; font-size: 12px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
@@ -100,7 +81,7 @@
   <header>
     <div class="logo" aria-hidden="true">S</div>
     <div><h1>Sahayak</h1><div class="tag">a money coach for first-time borrowers</div></div>
-    <span class="pill" id="status"><i class="dot" id="dot"></i>Alexa+ simulator · MCP over Streamable HTTP</span>
+    <span class="pill" id="status"><i class="dot" id="dot"></i>Alexa+ simulator · MCP over Streamable HTTP · MCP Apps host</span>
   </header>
 
   <main>
@@ -118,10 +99,10 @@
 
     <section class="panel device" aria-label="Echo Show screen">
       <div class="bar"><span>Echo Show</span><span style="margin-left:auto">Sahayak</span></div>
-      <div id="card" class="enter"><div class="empty"><b>Ask me about a loan</b>Results appear here as cards.</div></div>
+      <div id="card"><div class="host-empty"><b>Ask me about a loan</b>The screen is an MCP App served by the Sahayak server.</div></div>
       <details open>
-        <summary>Behind the scenes · MCP call</summary>
-        <pre id="trace"><span class="m">Nothing called yet. Each message becomes a real MCP tool call to the Sahayak server.</span></pre>
+        <summary>Behind the scenes · MCP</summary>
+        <pre id="trace"><span class="m">Nothing called yet. Each message becomes a real MCP tool call to the Sahayak server, and its screen comes from the server too.</span></pre>
       </details>
     </section>
   </main>
@@ -136,9 +117,6 @@ let session = null, speakOn = true, busy = false;
 const conv = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());  // one id per page load, for turn-to-turn memory
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const fmt = n => '₹' + Math.round(n).toLocaleString('en-IN');
-const pct = n => (Math.round(n * 10) / 10) + '%';
-const row = (k, v) => `<div class="row"><span>${k}</span><span>${v}</span></div>`;
 
 function say(text, who, extra = '') {
   const d = document.createElement('div');
@@ -161,85 +139,96 @@ function typing(on) {
   log.appendChild(d); log.scrollTop = log.scrollHeight;
 }
 
-function confirmCard(title, lines) {
-  return `<div class="ok-card"><div class="tick">✓</div><div class="title">${esc(title)}</div>${lines.map(l => `<div class="tag">${l}</div>`).join('')}</div>`;
+/* ===================== MCP Apps host =====================
+   The screen is not drawn by this page. The Sahayak MCP server declares a ui:// resource for its tools
+   (_meta.ui.resourceUri); the backend fetches it, and this page mounts it in a sandboxed iframe and speaks the
+   host side of the MCP Apps protocol (JSON-RPC 2.0 over postMessage):
+     view -> host  ui/initialize                    host -> view  (result: hostContext)
+     view -> host  ui/notifications/initialized     host -> view  ui/notifications/tool-input, tool-result
+     view -> host  ui/notifications/size-changed
+   The iframe is sandboxed with allow-scripts only, so it has an opaque origin: no access to this page, its
+   cookies or storage. If a tool has no view we fall back to text, as the spec requires of hosts. */
+const PROTOCOL = '2026-01-26';
+let app = null;          // the mounted view: { frame, tool, toolInput, toolResult, uri }
+let appLog = [];         // protocol lines shown in the trace panel
+let lastTrace = null, lastSteps = null;
+
+function unmountApp() {
+  if (!app) return;
+  try { app.frame.contentWindow.postMessage({ jsonrpc: '2.0', id: 'teardown', method: 'ui/resource-teardown', params: { reason: 'new result' } }, '*'); } catch (_) {}
+  app = null;
 }
 
-function affordHtml(a) {
-  const v = esc(a.verdict);
-  return `<div class="verdict ${v}">${v[0].toUpperCase() + v.slice(1)}</div>
-      ${row('Monthly income', fmt(a.monthly_income))}
-      ${row('Regular expenses', fmt(a.monthly_expenses))}
-      ${row('Existing loan payments', fmt(a.existing_emis))}
-      ${row('New payment', fmt(a.new_emi))}
-      ${row('Left after everything', `<b class="${a.surplus_after < 0 ? 'unaffordable' : ''}">${fmt(a.surplus_after)}</b>`)}
-      ${row('Loan payments / income', pct(a.emi_to_income_ratio))}
-      ${a.reasons.map(r => `<div class="note ${a.verdict === 'comfortable' ? 'info' : ''}">${esc(r)}</div>`).join('')}`;
+function mountApp(d) {
+  unmountApp();
+  const frame = document.createElement('iframe');
+  frame.className = 'appframe';
+  frame.title = 'Sahayak card (MCP App)';
+  frame.setAttribute('sandbox', 'allow-scripts');   // no allow-same-origin: the view cannot reach this page
+  frame.srcdoc = d.ui.html;                         // the HTML the server returned for its ui:// resource
+  app = { frame, tool: d.card.tool, toolInput: d.tool_input, toolResult: d.tool_result, uri: d.ui.resourceUri, mime: d.ui.mimeType };
+  appLog = [];
+  card.replaceChildren(frame);
 }
 
-function explainHtml(c) {
-  const x = c.cost, total = x.principal + x.total_interest + x.upfront_fees || 1;
-  return `
-      <div class="big">${fmt(x.emi)} <small>per month · ${x.term_months} months</small></div>
-      <div class="bar2" role="img" aria-label="Where your repayment goes">
-        <i style="width:${x.principal / total * 100}%;background:var(--blue)"></i>
-        <i style="width:${x.total_interest / total * 100}%;background:var(--bad)"></i>
-        <i style="width:${x.upfront_fees / total * 100}%;background:var(--warn)"></i></div>
-      <div class="legend"><span><b style="background:var(--blue)"></b>Borrowed</span>
-        <span><b style="background:var(--bad)"></b>Interest</span><span><b style="background:var(--warn)"></b>Fees</span></div>
-      ${row('You receive', fmt(x.net_disbursed))}
-      ${row('You repay in total', fmt(x.total_repayment))}
-      ${row('Extra cost (interest + fees)', fmt(x.total_cost))}
-      ${row('Quoted rate (' + esc(x.rate_type) + ')', pct(x.stated_annual_rate))}
-      ${row('True yearly cost', `<b style="color:${x.effective_annual_rate > x.stated_annual_rate + 0.5 ? 'var(--bad)' : 'var(--good)'}">${pct(x.effective_annual_rate)}</b>`)}
-      ${c.comparison.extra_cost_of_flat > 0 ? `<div class="note">Flat vs reducing at this rate: flat costs ${fmt(c.comparison.extra_cost_of_flat)} more.</div>` : ''}
-      ${c.assumed_rate_type ? '<div class="note">Rate type assumed flat. Please confirm with your lender.</div>' : ''}`;
+function showTextFallback(d) {
+  unmountApp();
+  const box = document.createElement('div');
+  box.className = 'host-text';
+  box.innerHTML = `<div>${esc(d.speech)}</div><small>Text only: this tool has no MCP App view, so the host shows its text result.</small>`;
+  card.replaceChildren(box);
+  appLog = [];
 }
 
-function reviewHtml(c) {
-  const sec = t => `<div class="sec">${t}</div>`;
-  return `<div class="title">Offer review</div>
-    ${sec('1 · True cost')}${explainHtml(c)}
-    ${sec('2 · Does it fit your budget?')}${c.affordability ? affordHtml(c.affordability)
-      : '<div class="note">Skipped: I do not have your income and expenses yet.</div>'}
-    ${sec('3 · Ask the lender')}<ol class="qs">${c.questions.map(q => `<li>${esc(q)}</li>`).join('')}</ol>
-    ${c.lesson ? `<div class="note info">Worth learning: ${esc(c.lesson.title)}. ${esc(c.lesson.quiz)}</div>` : ''}`;
+function showScreen(d) {
+  if (!d.card) return;                              // a follow-up question: leave the screen as it is
+  if (d.ui) { try { mountApp(d); return; } catch (e) { console.warn('MCP App failed, using text', e); } }
+  showTextFallback(d);
 }
 
-function render(c) {
-  if (!c) return;
-  let html = '';
-  if (c.tool === 'explain_loan') {
-    html = explainHtml(c);
-  } else if (c.tool === 'review_loan_offer') {
-    html = reviewHtml(c);
-  } else if (c.tool === 'check_affordability' && c.affordability) {
-    html = affordHtml(c.affordability);
-  } else if (c.tool === 'my_loans') {
-    html = c.loans.length
-      ? c.loans.map(l => `<div style="margin-bottom:12px"><div class="title" style="font-size:17px">#${l.number} ${esc(l.lender_label)}</div>
-          ${row('Payment', fmt(l.emi) + ' / month')}
-          ${row('Paid so far', fmt(l.paid) + ' of ' + fmt(l.total_due))}
-          <div class="prog"><i style="width:${Math.min(100, l.paid / l.total_due * 100)}%"></i></div></div>`).join('')
-        + row('Total monthly payments', `<b>${fmt(c.monthly_total)}</b>`)
-      : '<div class="empty"><b>No loans saved yet</b>Say "add a loan" to start tracking one.</div>';
-  } else if (c.tool === 'next_lesson' && c.lesson) {
-    html = `<div class="title">${esc(c.lesson.title)}</div><p>${esc(c.lesson.body)}</p>
-      <div class="note info">Quick question: ${esc(c.lesson.quiz)}</div>`;
-  } else if (c.tool === 'add_loan') {
-    html = confirmCard('Loan saved', [`Saved as loan ${esc(c.loan_number)}`, `Payment ${fmt(c.emi)} a month`]);
-  } else if (c.tool === 'log_repayment') {
-    html = confirmCard('Payment recorded', ['Well done for staying on track.']);
-  } else if (c.tool === 'save_my_budget') {
-    html = confirmCard('Budget saved', ["I'll use it for affordability checks."]);
-  } else {
-    html = `<div class="empty">${esc(c.speech || 'Done.')}</div>`;
+window.addEventListener('message', ev => {
+  if (!app || ev.source !== app.frame.contentWindow) return;   // only our own view may talk to us
+  const m = ev.data;
+  if (!m || m.jsonrpc !== '2.0') return;
+  const send = msg => ev.source.postMessage({ jsonrpc: '2.0', ...msg }, '*');   // opaque-origin iframe: '*' is required
+  const log_ = line => { appLog.push(line); renderTrace(); };
+
+  switch (m.method) {
+    case 'ui/initialize':
+      log_('view → host  ui/initialize');
+      send({ id: m.id, result: {
+        protocolVersion: PROTOCOL,
+        hostCapabilities: {},
+        hostInfo: { name: 'Sahayak Alexa+ simulator', version: '1.0.0' },
+        hostContext: { toolInfo: { tool: { name: app.tool } }, theme: 'dark', displayMode: 'inline',
+                       availableDisplayModes: ['inline'], locale: 'en-IN', platform: 'web' } } });
+      log_('host → view  initialize result (theme dark, inline)');
+      break;
+    case 'ui/notifications/initialized':
+      log_('view → host  ui/notifications/initialized');
+      send({ method: 'ui/notifications/tool-input', params: { arguments: app.toolInput } });
+      send({ method: 'ui/notifications/tool-result', params: app.toolResult });   // a standard CallToolResult
+      log_('host → view  ui/notifications/tool-input, tool-result');
+      break;
+    case 'ui/notifications/size-changed': {
+      const h = Number(m.params && m.params.height);
+      if (h > 0) {
+        const px = Math.min(Math.ceil(h) + 2, 4000);
+        if (app.frame.style.height !== px + 'px') { app.frame.style.height = px + 'px'; }
+        appLog = appLog.filter(l => !l.startsWith('view → host  ui/notifications/size-changed'));
+        log_(`view → host  ui/notifications/size-changed (${px}px)`);
+      }
+      break;
+    }
+    case 'ping':
+      if (m.id !== undefined) send({ id: m.id, result: {} });
+      break;
+    default:
+      if (m.id !== undefined) send({ id: m.id, error: { code: -32601, message: 'Method not supported by this host' } });
   }
-  card.className = ''; void card.offsetWidth; card.className = 'enter';
-  card.innerHTML = html;
-  if (window.matchMedia('(max-width: 899px)').matches) card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-}
+});
 
+/* ===================== trace panel ===================== */
 function agentLines(steps) {
   const out = ['<span class="m">agents behind this one tool:</span>'];
   for (const s of steps) {
@@ -249,24 +238,39 @@ function agentLines(steps) {
   return out;
 }
 
-function showTrace(t, steps) {
+function renderTrace() {
+  const t = lastTrace;
   if (!t) return;
-  const args = JSON.stringify(t.arguments || {}, null, 0);
   const lines = [
     `<span class="k">→ ${esc(t.method)}</span>  ${esc(t.tool)}`,
-    `  ${esc(args)}`,
+    `  ${esc(JSON.stringify(t.arguments || {}))}`,
   ];
-  if (t.event === 'elicitation/create') lines.push(`<span class="k">← elicitation/create</span>  server asks: ${esc(t.asked)}`);
-  else if (t.event === 'tool error') lines.push(`<span class="k">←</span> tool returned an error`);
-  else {
+  if (t.event === 'elicitation/create') {
+    lines.push(`<span class="k">← elicitation/create</span>  server asks: ${esc(t.asked)}`);
+  } else if (t.event === 'tool error') {
+    lines.push('<span class="k">←</span> tool returned an error');
+  } else {
     if (t.elicited) lines.push('<span class="m">  (server asked a follow-up, user answered)</span>');
     lines.push(`<span class="k">←</span> tools/call took ${esc(t.server_ms)} ms  <span class="m">(Alexa+ budget: 500 ms; excludes connection setup${t.elicited ? ' and time spent waiting for you' : ''})</span>`);
+    if (app) {
+      lines.push(`<span class="k">MCP App view</span>  ${esc(app.uri)}  <span class="m">(${esc(app.mime)}, sandboxed iframe)</span>`);
+      for (const l of appLog) lines.push('  <span class="m">' + esc(l) + '</span>');
+    } else if (lastSteps !== null) {
+      lines.push('<span class="m">No MCP App view for this tool: showing text only.</span>');
+    }
+    if (lastSteps && lastSteps.length) lines.push(...agentLines(lastSteps));
   }
-  if (steps && steps.length) lines.push(...agentLines(steps));
   lines.push(`<span class="m">${esc(t.protocol)}</span>`);
   trace.innerHTML = lines.join('\n');
 }
 
+function showTrace(t, steps) {
+  if (!t) return;
+  lastTrace = t; lastSteps = steps || [];
+  renderTrace();
+}
+
+/* ===================== chat ===================== */
 async function send(text) {
   text = text.trim();
   if (!text || busy) return;
@@ -281,8 +285,9 @@ async function send(text) {
     typing(false);
     session = d.awaiting_reply ? d.session : null;
     say(d.speech, 'bot', d.awaiting_reply ? 'ask' : '');
-    render(d.card);
+    showScreen(d);
     showTrace(d.trace, d.card && d.card.agent_trace);
+    if (window.matchMedia('(max-width: 899px)').matches && d.card) card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     $('#dot').className = 'dot ok';
   } catch (e) {
     typing(false);

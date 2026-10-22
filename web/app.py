@@ -1,4 +1,4 @@
-﻿"""Simulated Alexa+ front end.
+"""Simulated Alexa+ front end.
 
 Plays the role of Alexa+ (the MCP *client*): takes what the user says, picks a tool on the
 Sahayak MCP server, calls it over Streamable HTTP, answers the server's follow-up questions
@@ -39,6 +39,8 @@ class Turn:
         self.task: asyncio.Task | None = None
         self.tool = ""
         self.preface = ""  # spoken before the tool's answer, e.g. which saved value was reused
+        self.ui: dict | None = None  # the MCP App view fetched from the server's ui:// resource, if the tool has one
+        self.tool_content: list = []  # the CallToolResult content array, passed on to the view
         self.args: dict = {}
         self.elicited = False
         self.waited = 0.0  # seconds spent waiting for the user to answer a follow-up question
@@ -67,6 +69,26 @@ def _answer_from_text(schema: dict, text: str) -> dict:
     return out
 
 
+APPS_MIME = "text/html;profile=mcp-app"
+
+
+async def _fetch_app_view(session: ClientSession, tool: str) -> dict | None:
+    """MCP Apps host step: if the tool declares _meta.ui.resourceUri, read that ui:// resource.
+
+    Returns None (text-only fallback) when the tool has no screen or the resource is not an MCP App view.
+    """
+    tools = (await session.list_tools()).tools
+    meta = next((t.meta for t in tools if t.name == tool), None) or {}
+    uri = (meta.get("ui") or {}).get("resourceUri") or meta.get("ui/resourceUri")  # current key, then deprecated flat key
+    if not (isinstance(uri, str) and uri.startswith("ui://")):
+        return None
+    content = (await session.read_resource(uri)).contents[0]
+    html = getattr(content, "text", None)
+    if content.mimeType != APPS_MIME or not html:
+        return None
+    return {"resourceUri": uri, "mimeType": content.mimeType, "html": html}
+
+
 async def _run_tool(turn: Turn, tool: str, args: dict, user_id: str):
     async def on_elicit(_ctx, params):
         loop = asyncio.get_running_loop()
@@ -84,6 +106,8 @@ async def _run_tool(turn: Turn, tool: str, args: dict, user_id: str):
             started = time.perf_counter()
             result = await session.call_tool(tool, {**args, "user_id": user_id})
             turn.server_ms = max((time.perf_counter() - started - turn.waited) * 1000, 0.0)
+            turn.tool_content = [c.model_dump(exclude_none=True) for c in result.content]
+            turn.ui = await _fetch_app_view(session, tool)  # MCP Apps: ask the server for this tool's screen
             if result.isError:
                 msg = " ".join(getattr(c, "text", "") for c in result.content)
                 return {"error": re.sub(r"^Error executing tool \w+:\s*", "", msg)}
@@ -208,7 +232,10 @@ async def chat(request):
     if isinstance(data.get("cost"), dict) and "emi" in data["cost"]:
         conv_state["last_emi"] = data["cost"]["emi"]  # so "is the payment affordable?" can refer to it
     return JSONResponse({"session": sid, "speech": turn.preface + data.get("speech", ""),
-                         "card": {"tool": turn.tool, **data}, "trace": turn.trace()})
+                         "card": {"tool": turn.tool, **data}, "trace": turn.trace(),
+                         # what an MCP Apps host needs to show the screen: the view, and the call it belongs to
+                         "ui": turn.ui, "tool_input": turn.args,
+                         "tool_result": {"content": turn.tool_content, "structuredContent": data}})
 
 
 async def index(_request):

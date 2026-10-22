@@ -1,4 +1,4 @@
-﻿"""End-to-end smoke test against a running Sahayak MCP server.
+"""End-to-end smoke test against a running Sahayak MCP server.
 
     python -m eval.smoke [http://127.0.0.1:8000/mcp]
 
@@ -56,6 +56,20 @@ async def main() -> None:
             want = {"explain_loan", "save_my_budget", "check_affordability", "add_loan",
                     "log_repayment", "my_loans", "next_lesson"}
             check("all tools discoverable", want <= tools, str(sorted(want - tools)))
+
+            # MCP Apps: every tool declares its screen, and the screen is served as a ui:// resource
+            listed = {t.name: t for t in (await s.list_tools()).tools}
+            uris = {n: ((t.meta or {}).get("ui") or {}).get("resourceUri") for n, t in listed.items()}
+            check("every tool declares _meta.ui.resourceUri", all(u == "ui://sahayak/card" for u in uris.values()),
+                  str({n: u for n, u in uris.items() if u != "ui://sahayak/card"}))
+            ui = await s.read_resource("ui://sahayak/card")
+            body = ui.contents[0]
+            check("ui:// resource has the MCP Apps mime type", body.mimeType == "text/html;profile=mcp-app", str(body.mimeType))
+            html = getattr(body, "text", "") or ""
+            check("view speaks the host protocol (ui/initialize, tool-result)",
+                  "ui/initialize" in html and "ui/notifications/tool-result" in html)
+            check("view is self-contained (no external scripts or network)",
+                  "<script src" not in html and "http://" not in html and "https://" not in html and "fetch(" not in html)
 
             # elicitation path: no rate_type given, server must ask
             res, d, ms = await call(s, "explain_loan", {"principal": 50000, "annual_rate": 24, "term_months": 12,

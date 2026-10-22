@@ -9,6 +9,7 @@ OAuth access token that Alexa+ account linking sends on every request.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import BaseModel, Field
@@ -21,6 +22,14 @@ from core.loan import (RATE_TYPES, check_affordability as _affordability,
 from core.narrate import money, narrate_affordability, narrate_loan
 
 DEFAULT_USER = "demo"
+
+# MCP Apps: tools point at a ui:// resource that the host renders as the on-screen card (Echo Show etc.).
+# `_meta.ui.resourceUri` is the current key; the flat `ui/resourceUri` is the deprecated one older hosts read.
+# A host without MCP Apps support ignores both and uses the text in `speech` / `content` (text-only fallback).
+UI_URI = "ui://sahayak/card"
+UI_MIME = "text/html;profile=mcp-app"
+UI_META = {"ui": {"resourceUri": UI_URI}, "ui/resourceUri": UI_URI}
+CARD_HTML = (Path(__file__).parent / "ui" / "card.html").read_text(encoding="utf-8")
 
 mcp = FastMCP(
     "sahayak",
@@ -59,7 +68,7 @@ async def _ask_rate_type(ctx: Context, rate_type: str) -> tuple[str, bool]:
     return res.data.rate_type, False
 
 
-@mcp.tool()
+@mcp.tool(meta=UI_META)
 async def explain_loan(ctx: Context, principal: float, annual_rate: float, term_months: int,
                        fees: float = 0.0, rate_type: str = "", user_id: str = DEFAULT_USER) -> dict:
     """Explain what a loan really costs, in plain words: monthly payment, total repayment,
@@ -74,7 +83,7 @@ async def explain_loan(ctx: Context, principal: float, annual_rate: float, term_
     return {"speech": speech, "cost": cost, "comparison": comparison, "assumed_rate_type": assumed}
 
 
-@mcp.tool()
+@mcp.tool(meta=UI_META)
 async def review_loan_offer(ctx: Context, principal: float, annual_rate: float, term_months: int,
                             fees: float = 0.0, rate_type: str = "", user_id: str = DEFAULT_USER) -> dict:
     """Review a whole loan offer in one go: the true cost, whether the payment fits the user's budget,
@@ -100,7 +109,7 @@ async def review_loan_offer(ctx: Context, principal: float, annual_rate: float, 
     return result
 
 
-@mcp.tool()
+@mcp.tool(meta=UI_META)
 def save_my_budget(monthly_income: float, monthly_expenses: float, user_id: str = DEFAULT_USER) -> dict:
     """Remember the user's monthly income and regular expenses, so affordability checks can reuse them."""
     if monthly_income <= 0 or monthly_expenses < 0:
@@ -109,7 +118,7 @@ def save_my_budget(monthly_income: float, monthly_expenses: float, user_id: str 
     return {"speech": "Got it. I have saved your income and expenses.", "saved": True}
 
 
-@mcp.tool()
+@mcp.tool(meta=UI_META)
 async def check_affordability(ctx: Context, new_emi: float, user_id: str = DEFAULT_USER) -> dict:
     """Check whether a monthly loan payment is realistic against the user's saved income, expenses and
     existing loans. Asks for income and expenses if not yet saved."""
@@ -125,7 +134,7 @@ async def check_affordability(ctx: Context, new_emi: float, user_id: str = DEFAU
     return {"speech": narrate_affordability(result), "affordability": result}
 
 
-@mcp.tool()
+@mcp.tool(meta=UI_META)
 def add_loan(lender_label: str, principal: float, annual_rate: float, term_months: int,
              rate_type: str, fees: float = 0.0, user_id: str = DEFAULT_USER) -> dict:
     """Record a loan the user has taken so Sahayak can track repayments. lender_label is a nickname
@@ -157,7 +166,7 @@ def _resolve_loan(user_id: str, loan_number: int, lender_label: str) -> dict:
     raise ValueError("Which loan did you pay? Say its name or number.")
 
 
-@mcp.tool()
+@mcp.tool(meta=UI_META)
 def log_repayment(amount: float, loan_number: int = 0, lender_label: str = "",
                   user_id: str = DEFAULT_USER) -> dict:
     """Record a repayment the user made. Say which loan by number or by name; if the user has only one loan,
@@ -170,7 +179,7 @@ def log_repayment(amount: float, loan_number: int = 0, lender_label: str = "",
                       f"Well done for staying on track.", "logged": True}
 
 
-@mcp.tool()
+@mcp.tool(meta=UI_META)
 def my_loans(user_id: str = DEFAULT_USER) -> dict:
     """Summarise the user's loans: what is owed, what is paid, and the monthly payment total."""
     loans = store.list_loans(user_id)
@@ -185,7 +194,7 @@ def my_loans(user_id: str = DEFAULT_USER) -> dict:
     return {"speech": speech, "loans": loans, "monthly_total": round(monthly, 2)}
 
 
-@mcp.tool()
+@mcp.tool(meta=UI_META)
 def next_lesson(user_id: str = DEFAULT_USER, mark_previous_done: bool = True) -> dict:
     """Give the next short money lesson, one the user has not heard yet, with a quiz question."""
     done = store.completed_lessons(user_id)
@@ -195,6 +204,13 @@ def next_lesson(user_id: str = DEFAULT_USER, mark_previous_done: bool = True) ->
     if mark_previous_done:
         store.complete_lesson(user_id, lesson["id"])
     return {"speech": f"{lesson['title']}. {lesson['body']} Quick question: {lesson['quiz']}", "lesson": lesson}
+
+
+@mcp.resource(UI_URI, name="Sahayak card", mime_type=UI_MIME,
+              description="The on-screen card for Sahayak results (an MCP App view). Rendered by the host in a "
+                          "sandboxed iframe; it receives the tool result over postMessage.")
+def card_ui() -> str:
+    return CARD_HTML
 
 
 @mcp.resource("sahayak://loans/{user_id}")

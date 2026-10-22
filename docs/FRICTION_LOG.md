@@ -52,7 +52,34 @@ Entries are written as they happened. Fields: task, steps, expected vs actual, s
 - **Severity:** medium. **Workaround:** `pip install "mcp<2"`.
 - **Suggestion:** state the supported SDK major version on the hackathon Resources page.
 
-## 7. Python 3.14: `pip install strands-agents mcp` stalled
+## 7. MCP Apps: the details are not where the hackathon page points
+- **Task:** make the on-screen card an MCP App, as Alexa+ screens expect.
+- **Steps:** followed the "Build with Agent Skills" link on the Resources page, then web-searched for the format.
+- **Expected:** the metadata key, MIME type and message handshake.
+- **Actual:** the linked API page is an overview that omits all three. They are in the spec file of the `ext-apps`
+  repository (`specification/2026-01-26/apps.mdx`), which I found through search.
+- **Severity:** medium. **Workaround:** read the spec file directly.
+- **Suggestion:** link the spec file, and a minimal Python server example, from the Alexa+ resources.
+
+## 8. MCP Apps spec contradicts itself in several places
+- **Task:** implement the View's `ui/initialize` request and the host's replies.
+- **Actual:** the spec names the field `appCapabilities` in the text but `capabilities` in its JSON example; lists
+  `ui/resource-teardown` as a notification but shows it with an `id`; the CSP example uses `connect-src 'self'` while the
+  stated default is `connect-src 'none'`; and the capability example uses protocol `2024-11-05` while the rest uses
+  `2026-01-26`. The flat `ui/resourceUri` key is deprecated but SDKs still emit it.
+- **Severity:** low to medium. **Workaround:** send both field names, tolerate both message shapes, and emit both the
+  current and the legacy `_meta` key.
+- **Suggestion:** reconcile the examples with the normative text.
+
+## 9. Python MCP SDK cannot advertise the MCP Apps capability
+- **Task:** have the simulator host advertise `io.modelcontextprotocol/ui` so the server can check it.
+- **Actual:** `ClientSession` in `mcp` 1.x takes no capabilities argument, and `ClientCapabilities` has no `extensions`
+  field, so a Python client cannot send it. The server therefore always declares the view and relies on the text fallback.
+- **Severity:** low. **Workaround:** none; documented as a limitation.
+- **Suggestion:** support client `extensions` in the Python SDK (the 2.x line appears to add an `extensions` parameter,
+  but 2.x also renamed `FastMCP`, see entry 6).
+
+## 10. Python 3.14: `pip install strands-agents mcp` stalled
 - **Task:** install the MCP SDK and Strands Agents in a fresh venv on Python 3.14.
 - **Steps:** `pip install mcp strands-agents uvicorn boto3` (first with `boto3` listed separately, then without).
 - **Expected:** a normal install.

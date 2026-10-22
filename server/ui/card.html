@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sahayak card</title>
+<!--
+  Sahayak's MCP App "View": the screen shown on Alexa+ devices that have one.
+  Served by the MCP server as the ui:// resource ui://sahayak/card (text/html;profile=mcp-app).
+  It runs in a sandboxed iframe, has no network access, and talks to the host only through postMessage
+  (JSON-RPC 2.0): ui/initialize -> ui/notifications/initialized -> the host then sends
+  ui/notifications/tool-input and ui/notifications/tool-result, which this page renders.
+-->
+<style>
+  :root {
+    --bg: #0b1324; --panel2: #1a2640; --line: #26324f; --text: #e9effc; --muted: #93a1c4;
+    --accent: #2dd4bf; --good: #4ade80; --warn: #fbbf24; --bad: #f87171; --blue: #60a5fa;
+    --note-bg: #3a2b0a; --note-line: #6b4f10; --note-text: #fde68a;
+    --info-bg: #0f2a3a; --info-line: #1d5473; --info-text: #bae6fd;
+  }
+  :root[data-theme="light"] {
+    --bg: #ffffff; --panel2: #eef2fb; --line: #d5dcee; --text: #14213d; --muted: #5b6b8c;
+    --accent: #0d9488; --good: #15803d; --warn: #b45309; --bad: #dc2626; --blue: #2563eb;
+    --note-bg: #fef3c7; --note-line: #f59e0b; --note-text: #78350f;
+    --info-bg: #e0f2fe; --info-line: #38bdf8; --info-text: #0c4a6e;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  #root { padding: 16px 18px 14px; animation: pop .25s ease-out; }
+  @keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .empty { color: var(--muted); padding: 40px 8px; text-align: center; }
+  .empty b { display: block; color: var(--text); font-size: 18px; margin-bottom: 6px; }
+  .big { font-size: 38px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .big small { font-size: 15px; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+  .title { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  .row:last-child { border-bottom: 0; }
+  .row span:first-child { color: var(--muted); }
+  .bar2 { display: flex; height: 16px; border-radius: 8px; overflow: hidden; margin: 12px 0 6px; background: var(--panel2); }
+  .bar2 i { display: block; height: 100%; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .legend b { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
+  .verdict { font-size: 30px; font-weight: 800; }
+  .comfortable { color: var(--good); } .tight { color: var(--warn); } .unaffordable { color: var(--bad); }
+  .note { background: var(--note-bg); border: 1px solid var(--note-line); color: var(--note-text); border-radius: 10px; padding: 8px 12px; margin-top: 10px; font-size: 14px; }
+  .note.info { background: var(--info-bg); border-color: var(--info-line); color: var(--info-text); }
+  .prog { height: 8px; background: var(--panel2); border-radius: 4px; overflow: hidden; margin: 4px 0 10px; }
+  .prog i { display: block; height: 100%; background: var(--accent); }
+  .ok-card { text-align: center; padding: 26px 8px; }
+  .ok-card .tick { width: 54px; height: 54px; border-radius: 50%; background: #14532d; color: var(--good); display: grid; place-items: center; margin: 0 auto 10px; font-size: 28px; }
+  .tag { color: var(--muted); font-size: 14px; }
+  .sec { margin: 16px 0 6px; font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+  .qs { margin: 4px 0 8px; padding-left: 20px; font-size: 14px; } .qs li { margin: 4px 0; }
+  details { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; }
+  summary { cursor: pointer; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .agents { margin: 8px 0 0; padding: 0; list-style: none; font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--muted); }
+  .agents .ok { color: var(--good); } .agents .no { color: var(--bad); }
+  summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { #root { animation: none; } }
+</style>
+</head>
+<body>
+<div id="root"><div class="empty"><b>Sahayak</b>Waiting for a result…</div></div>
+
+<script>
+(function () {
+  'use strict';
+  var root = document.getElementById('root');
+
+  // ---------- helpers: every dynamic string goes through esc() ----------
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var fmt = function (n) { return '₹' + Math.round(n).toLocaleString('en-IN'); };
+  var pct = function (n) { return (Math.round(n * 10) / 10) + '%'; };
+  var row = function (k, v) { return '<div class="row"><span>' + k + '</span><span>' + v + '</span></div>'; };
+
+  // ---------- cards ----------
+  function explainHtml(c) {
+    var x = c.cost, total = x.principal + x.total_interest + x.upfront_fees || 1;
+    var rateColor = x.effective_annual_rate > x.stated_annual_rate + 0.5 ? 'var(--bad)' : 'var(--good)';
+    return '<div class="big">' + fmt(x.emi) + ' <small>per month · ' + esc(x.term_months) + ' months</small></div>'
+      + '<div class="bar2" role="img" aria-label="Where your repayment goes">'
+      + '<i style="width:' + (x.principal / total * 100) + '%;background:var(--blue)"></i>'
+      + '<i style="width:' + (x.total_interest / total * 100) + '%;background:var(--bad)"></i>'
+      + '<i style="width:' + (x.upfront_fees / total * 100) + '%;background:var(--warn)"></i></div>'
+      + '<div class="legend"><span><b style="background:var(--blue)"></b>Borrowed</span>'
+      + '<span><b style="background:var(--bad)"></b>Interest</span><span><b style="background:var(--warn)"></b>Fees</span></div>'
+      + row('You receive', fmt(x.net_disbursed))
+      + row('You repay in total', fmt(x.total_repayment))
+      + row('Extra cost (interest + fees)', fmt(x.total_cost))
+      + row('Quoted rate (' + esc(x.rate_type) + ')', pct(x.stated_annual_rate))
+      + row('True yearly cost', '<b style="color:' + rateColor + '">' + pct(x.effective_annual_rate) + '</b>')
+      + (c.comparison && c.comparison.extra_cost_of_flat > 0
+          ? '<div class="note">Flat vs reducing at this rate: flat costs ' + fmt(c.comparison.extra_cost_of_flat) + ' more.</div>' : '')
+      + (c.assumed_rate_type ? '<div class="note">Rate type assumed flat. Please confirm with your lender.</div>' : '');
+  }
+
+  function affordHtml(a) {
+    var v = esc(a.verdict);
+    return '<div class="verdict ' + v + '">' + v.charAt(0).toUpperCase() + v.slice(1) + '</div>'
+      + row('Monthly income', fmt(a.monthly_income))
+      + row('Regular expenses', fmt(a.monthly_expenses))
+      + row('Existing loan payments', fmt(a.existing_emis))
+      + row('New payment', fmt(a.new_emi))
+      + row('Left after everything', '<b class="' + (a.surplus_after < 0 ? 'unaffordable' : '') + '">' + fmt(a.surplus_after) + '</b>')
+      + row('Loan payments / income', pct(a.emi_to_income_ratio))
+      + a.reasons.map(function (r) { return '<div class="note ' + (a.verdict === 'comfortable' ? 'info' : '') + '">' + esc(r) + '</div>'; }).join('');
+  }
+
+  function agentsHtml(steps) {
+    if (!steps || !steps.length) return '';
+    return '<details><summary>How I worked this out</summary><ul class="agents">'
+      + steps.map(function (s) {
+          return '<li><span class="' + (s.ok ? 'ok">✓' : 'no">✗') + '</span> ' + esc(s.agent) + ' · ' + esc(s.action)
+            + (s.detail ? ' — ' + esc(s.detail) : '') + '</li>'; }).join('')
+      + '</ul></details>';
+  }
+
+  function reviewHtml(c) {
+    return '<div class="title">Offer review</div>'
+      + '<div class="sec">1 · True cost</div>' + explainHtml(c)
+      + '<div class="sec">2 · Does it fit your budget?</div>'
+      + (c.affordability ? affordHtml(c.affordability) : '<div class="note">Skipped: I do not have your income and expenses yet.</div>')
+      + '<div class="sec">3 · Ask the lender</div><ol class="qs">'
+      + (c.questions || []).map(function (q) { return '<li>' + esc(q) + '</li>'; }).join('') + '</ol>'
+      + (c.lesson ? '<div class="note info">Worth learning: ' + esc(c.lesson.title) + '. ' + esc(c.lesson.quiz) + '</div>' : '')
+      + agentsHtml(c.agent_trace);
+  }
+
+  function loansHtml(c) {
+    if (!c.loans || !c.loans.length) return '<div class="empty"><b>No loans saved yet</b>Say "add a loan" to start tracking one.</div>';
+    return c.loans.map(function (l) {
+      return '<div style="margin-bottom:12px"><div class="title" style="font-size:17px">#' + esc(l.number) + ' ' + esc(l.lender_label) + '</div>'
+        + row('Payment', fmt(l.emi) + ' / month')
+        + row('Paid so far', fmt(l.paid) + ' of ' + fmt(l.total_due))
+        + '<div class="prog"><i style="width:' + Math.min(100, l.paid / l.total_due * 100) + '%"></i></div></div>';
+    }).join('') + row('Total monthly payments', '<b>' + fmt(c.monthly_total) + '</b>');
+  }
+
+  function confirmHtml(title, lines) {
+    return '<div class="ok-card"><div class="tick">✓</div><div class="title">' + esc(title) + '</div>'
+      + lines.map(function (l) { return '<div class="tag">' + l + '</div>'; }).join('') + '</div>';
+  }
+
+  // The tool result carries no tool name, so the card type is read from its shape.
+  function htmlFor(d) {
+    if (d.agent_trace && d.questions) return reviewHtml(d);
+    if (d.cost && d.comparison) return explainHtml(d);
+    if (d.affordability) return affordHtml(d.affordability);
+    if (d.loans) return loansHtml(d);
+    if (d.lesson) return '<div class="title">' + esc(d.lesson.title) + '</div><p>' + esc(d.lesson.body)
+      + '</p><div class="note info">Quick question: ' + esc(d.lesson.quiz) + '</div>';
+    if (d.loan_number) return confirmHtml('Loan saved', ['Saved as loan ' + esc(d.loan_number), 'Payment ' + fmt(d.emi) + ' a month']);
+    if (d.logged) return confirmHtml('Payment recorded', ['Well done for staying on track.']);
+    if (d.saved) return confirmHtml('Budget saved', ["I'll use it for affordability checks."]);
+    return '<div class="empty">' + esc(d.speech || 'Done.') + '</div>';
+  }
+
+  function render(result) {
+    var d = result && result.structuredContent;
+    if (result && result.isError) {
+      var t = (result.content || []).map(function (c) { return c.text || ''; }).join(' ');
+      root.innerHTML = '<div class="empty"><b>Something went wrong</b>' + esc(t) + '</div>';
+    } else if (d) {
+      root.innerHTML = htmlFor(d);
+    } else {
+      var txt = ((result && result.content) || []).map(function (c) { return c.text || ''; }).join(' ');
+      root.innerHTML = '<div class="empty">' + esc(txt || 'Done.') + '</div>';
+    }
+    reportSize();
+  }
+
+  // ---------- host protocol: JSON-RPC 2.0 over postMessage ----------
+  var nextId = 1, pending = {};
+  function post(msg) { msg.jsonrpc = '2.0'; parent.postMessage(msg, '*'); }
+  function request(method, params) {
+    return new Promise(function (resolve, reject) {
+      var id = nextId++; pending[id] = { resolve: resolve, reject: reject };
+      post({ id: id, method: method, params: params });
+    });
+  }
+  function notify(method, params) { post({ method: method, params: params || {} }); }
+
+  function applyContext(ctx) {
+    if (ctx && ctx.theme) document.documentElement.setAttribute('data-theme', ctx.theme === 'light' ? 'light' : 'dark');
+  }
+
+  var lastHeight = 0;
+  function reportSize() {
+    var h = Math.ceil(document.documentElement.scrollHeight);
+    if (h && h !== lastHeight) { lastHeight = h; notify('ui/notifications/size-changed', { width: Math.ceil(window.innerWidth), height: h }); }
+  }
+  if (window.ResizeObserver) new ResizeObserver(reportSize).observe(document.body);
+
+  window.addEventListener('message', function (ev) {
+    if (ev.source !== parent) return;                     // only the host may talk to us
+    var m = ev.data;
+    if (!m || m.jsonrpc !== '2.0') return;
+    if (m.id !== undefined && !m.method) {                // a response to one of our requests
+      var p = pending[m.id]; if (!p) return; delete pending[m.id];
+      if (m.error) p.reject(m.error); else p.resolve(m.result);
+      return;
+    }
+    switch (m.method) {
+      case 'ui/notifications/tool-result': render(m.params); break;
+      case 'ui/notifications/tool-input': break;          // arguments are not needed to draw the result
+      case 'ui/notifications/tool-cancelled':
+        root.innerHTML = '<div class="empty">Cancelled.</div>'; reportSize(); break;
+      case 'ui/notifications/host-context-changed': applyContext(m.params); break;
+      case 'ui/resource-teardown': if (m.id !== undefined) post({ id: m.id, result: {} }); break;
+      case 'ping': if (m.id !== undefined) post({ id: m.id, result: {} }); break;
+      default: if (m.id !== undefined) post({ id: m.id, error: { code: -32601, message: 'Method not found' } });
+    }
+  });
+
+  // The spec text and its own example disagree on the field name (appCapabilities vs capabilities): send both.
+  request('ui/initialize', {
+    protocolVersion: '2026-01-26',
+    appCapabilities: {}, capabilities: {},
+    clientInfo: { name: 'sahayak-card', version: '1.0.0' }
+  }).then(function (r) {
+    applyContext(r && r.hostContext);
+    notify('ui/notifications/initialized');
+  }).catch(function () {
+    root.innerHTML = '<div class="empty"><b>Sahayak</b>This screen could not connect to its host.</div>';
+  });
+})();
+</script>
+</body>
+</html>

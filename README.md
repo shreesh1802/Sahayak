@@ -1,4 +1,4 @@
-﻿# Sahayak
+# Sahayak
 
 **A voice-first money coach for first-time borrowers, built as an Alexa+ add-on (MCP server).**
 
@@ -27,14 +27,19 @@ Built for the **Amazon Developer Hackathon 2026, Alexa+ track.**
 ## How it works
 
 ```
- Alexa+ (MCP client)  â”€â”€Streamable HTTPâ”€â”€â–¶  Sahayak MCP server
-   language, speech,        spec 2025-11-25      tools Â· resources Â· elicitation
-   screen rendering                                     â”‚
-                                                        â–¼
-                                          core/ loan maths Â· SQLite memory
+ Alexa+ (MCP client)  ──Streamable HTTP──▶  Sahayak MCP server
+   language, speech,        spec 2025-11-25      tools · resources · elicitation
+   hosts the MCP App screen                             │
+                                                        ▼
+                                          core/ loan maths · SQLite memory
 ```
 
-- **`server/mcp_server.py`** is the Alexa+ add-on: 8 tools, 1 resource, and elicitation for missing details.
+- **`server/mcp_server.py`** is the Alexa+ add-on: 8 tools, 2 resources (the user's loans, and the on-screen card),
+  and elicitation for missing details.
+- **`server/ui/card.html`** is the **MCP App** view: the on-screen card, served by the server as the `ui://sahayak/card`
+  resource (`text/html;profile=mcp-app`) and linked from every tool through `_meta.ui.resourceUri`. A host renders it
+  in a sandboxed iframe and sends it each tool result over `postMessage`. The view has no network access and escapes
+  all text it displays. A host without MCP Apps support just shows the tool's text answer.
 - **`agents/pipeline.py`** is the multi-agent layer behind one tool, `review_loan_offer` ("should I take this loan?").
   Alexa+ makes a single call; behind it a **supervisor** plans and re-plans which specialists to run:
   a **loan analyst** (true cost), an **affordability** agent (skipped if the budget is unknown), and a **coach**
@@ -44,8 +49,12 @@ Built for the **Amazon Developer Hackathon 2026, Alexa+ track.**
   rate via IRR, affordability). **Every number that is spoken comes from this calculator; no language
   model touches the figures.**
 - **`core/store.py`** is the memory (SQLite): budget, loans, repayments and lesson progress persist across sessions.
-- **`web/`** is a simulated Alexa+ experience: an Echo Showâ€“style screen with voice input, spoken replies and
-  cards. It acts as an MCP client, so it exercises the real server over the real protocol.
+- **`web/`** is a simulated Alexa+ experience: voice input, spoken replies and an Echo Show–style screen. It acts as
+  an MCP client **and as an MCP Apps host**: it reads each tool's `_meta.ui.resourceUri`, fetches the view from the
+  server, mounts it in a sandboxed iframe (`allow-scripts` only, so the view cannot reach the page) and runs the host
+  side of the handshake (`ui/initialize`, `ui/notifications/initialized`, then `tool-input` and `tool-result`). The
+  "Behind the scenes" panel shows every message. The host is my own implementation of the subset of the protocol
+  this app needs; it is not Amazon's.
 - **`agents/router.py`** is a rule-based intent router standing in for Alexa+'s own language understanding.
 
 ## Run it
@@ -67,8 +76,8 @@ Open http://127.0.0.1:8080 and use the quick-start buttons, type, or tap the mic
 ## Tests
 
 ```bash
-python -m pytest                 # 54 unit tests: loan maths, intent router, multi-agent pipeline and verifier
-python -m eval.smoke             # 21 end-to-end checks against a running server
+python -m pytest                 # 61 unit tests: loan maths, router, multi-agent pipeline, verifier, MCP App contract
+python -m eval.smoke             # 25 end-to-end checks against a running server
 ```
 
 The end-to-end check also verifies the Alexa+ latency budget (under 500 ms; measured about 8 ms per tool call),
@@ -83,6 +92,12 @@ input validation, and that one user cannot log repayments on another user's loan
   (an attempt to enable Amazon Bedrock on a new account failed; see the friction log). A model-backed
   supervisor/specialist/verifier design is planned, with the calculator as the source of truth for all numbers.
 - **Not yet connected to real Alexa+.** Tested with the included simulator, not Amazon's simulator or a device.
+  In particular the MCP App view has only run in my own host. I built it from the MCP Apps spec (`2026-01-26`),
+  which has internal inconsistencies (for example the view's `initialize` field is named `appCapabilities` in the
+  text and `capabilities` in the example, so the view sends both), and I have not checked it against Amazon's host.
+- **No capability negotiation for MCP Apps.** The spec says hosts advertise `io.modelcontextprotocol/ui` and servers
+  should register UI tools only when it is present. The Python MCP SDK (1.x) has no way for a client to send it, so
+  the server always declares the screen and relies on the text fallback for hosts that ignore it.
 - **Authentication is a demo user.** In production the user id comes from the OAuth access token Alexa+ sends
   on every request (the Alexa+ MCP Toolkit requires OAuth 2.1 with PKCE).
 - **Affordability thresholds** (loan payments above 40% of income, under a 10% cushion) are stated rules of thumb, not credit advice.
@@ -94,7 +109,8 @@ input validation, and that one user cannot log repayments on another user's loan
 server/   MCP server (tools, resource, elicitation)
 core/     loan maths, memory, narration, lessons
 agents/   intent router, multi-agent pipeline (supervisor, specialists, verifier)
-web/      simulated Alexa+ experience
+server/ui the MCP App view (card.html)
+web/      simulated Alexa+ experience and MCP Apps host
 eval/     end-to-end smoke test
 tests/    unit tests
 docs/     friction log
