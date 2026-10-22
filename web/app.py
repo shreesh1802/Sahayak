@@ -22,7 +22,7 @@ from starlette.applications import Starlette
 from starlette.responses import FileResponse, JSONResponse
 from starlette.routing import Route as HttpRoute
 
-from agents.router import _NUM, _to_amount, route
+from agents.router import _NUM, MIN_MONTHLY, Route, _to_amount, route
 
 MCP_URL = os.environ.get("SAHAYAK_MCP_URL", "http://127.0.0.1:8000/mcp")
 HERE = Path(__file__).parent
@@ -87,6 +87,34 @@ async def _run_tool(turn: Turn, tool: str, args: dict, user_id: str):
             return result.structuredContent or json.loads(result.content[0].text)
 
 
+CONV: dict[str, dict] = {}  # per-conversation memory between turns (slot filling), keyed by browser id
+
+
+def remember_budget(state: dict, r: Route, text: str) -> Route:
+    """Complete a half-given budget across turns: 'my income is 25000' ... 'and expenses 14000'.
+
+    A bare number after a question for the missing half fills it in; anything else drops the pending question.
+    """
+    pending = dict(state.get("budget", {}))
+    if r.partial:
+        pending.update(r.partial)
+    elif r.tool is None and pending and (m := re.search(_NUM, text, re.I)):
+        value = _to_amount(m.group(1), m.group(2))
+        if value < MIN_MONTHLY:
+            return Route(None, note="That sounds low for a monthly amount. Please say the full number.")
+        pending["monthly_expenses" if "monthly_income" in pending else "monthly_income"] = value
+    else:
+        if r.tool is not None:
+            state.pop("budget", None)  # the user moved on
+        return r
+    if len(pending) == 2:
+        state.pop("budget", None)
+        return Route("save_my_budget", pending)
+    state["budget"] = pending
+    ask = "what are your regular monthly expenses" if "monthly_income" in pending else "what is your monthly income"
+    return Route(None, note=f"Thanks. And {ask}?")
+
+
 async def chat(request):
     body = await request.json()
     sid = body.get("session") or uuid.uuid4().hex
@@ -97,7 +125,7 @@ async def chat(request):
     if turn and turn.answer and not turn.answer.done():
         turn.answer.set_result(text)  # the user is answering the server's follow-up question
     else:
-        r = route(text)
+        r = remember_budget(CONV.setdefault(body.get("conv") or sid, {}), route(text), text)
         if r.tool is None:
             return JSONResponse({"session": sid, "speech": r.note, "card": None})
         turn = TURNS[sid] = Turn()

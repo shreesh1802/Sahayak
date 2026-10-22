@@ -23,6 +23,22 @@ def test_budget():
     assert r.tool == "save_my_budget" and r.args == {"monthly_income": 25_000, "monthly_expenses": 14_000}
 
 
+def test_income_alone_is_remembered_not_rejected():
+    r = route("my income is 25000")
+    assert r.tool is None and r.partial == {"monthly_income": 25_000} and "expenses" in r.note
+
+
+def test_expenses_alone_is_remembered():
+    r = route("my expenses are 14k")
+    assert r.tool is None and r.partial == {"monthly_expenses": 14_000} and "What is your monthly income?" in r.note
+
+
+def test_cut_off_number_is_not_saved():
+    # what the browser produced when speech recognition stopped mid-number
+    r = route("My income is 25")
+    assert r.tool is None and not r.partial and "full number" in r.note
+
+
 def test_repayment_by_number():
     r = route("I paid 2,000 on loan 1")
     assert (r.tool, r.args) == ("log_repayment", {"amount": 2_000, "loan_number": 1})

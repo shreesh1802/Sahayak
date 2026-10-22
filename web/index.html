@@ -133,6 +133,7 @@
 const $ = s => document.querySelector(s);
 const log = $('#log'), card = $('#card'), trace = $('#trace');
 let session = null, speakOn = true, busy = false;
+const conv = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());  // one id per page load, for turn-to-turn memory
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = n => '₹' + Math.round(n).toLocaleString('en-IN');
@@ -275,7 +276,7 @@ async function send(text) {
   typing(true);
   try {
     const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, session }) });
+      body: JSON.stringify({ text, session, conv }) });
     const d = await r.json();
     typing(false);
     session = d.awaiting_reply ? d.session : null;
@@ -304,16 +305,56 @@ $('#mute').addEventListener('click', () => {
   if (!speakOn && 'speechSynthesis' in window) speechSynthesis.cancel();
 });
 
+// Voice input. Speech recognition normally stops at the first pause and hands back a half sentence
+// ("my income is 25"). Instead we keep listening through short pauses, show the live transcript in the box
+// so you can see (and fix) what it heard, and only send after a quiet moment or when you tap the mic again.
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const SILENCE_MS = 2000;
 if (SR) {
-  const rec = new SR(); rec.lang = 'en-IN';
-  const off = () => $('#mic').classList.remove('on');
-  rec.onresult = e => { off(); send(e.results[0][0].transcript); };
-  rec.onend = rec.onerror = off;
-  $('#mic').addEventListener('click', () => {
+  const mic = $('#mic'), box = $('#text');
+  let rec = null, listening = false, finalText = '', timer = null, lastSent = '', lastSentAt = 0;
+
+  const finish = () => {
+    if (!listening) return;           // already finished: stops a second send from the 'end' event
+    listening = false;
+    clearTimeout(timer);
+    mic.classList.remove('on');
+    box.placeholder = 'Say or type something…';
+    try { rec.stop(); } catch (_) {}
+    const text = box.value.trim();
+    const now = Date.now();
+    if (!text || (text === lastSent && now - lastSentAt < 3000)) return;  // ignore empty and duplicate sends
+    lastSent = text; lastSentAt = now;
+    send(text);
+  };
+
+  mic.addEventListener('click', () => {
+    if (listening) { finish(); return; }            // tap again = done talking, send now
     if ('speechSynthesis' in window) speechSynthesis.cancel();
-    $('#mic').classList.add('on');
-    try { rec.start(); } catch (_) { off(); }
+    rec = new SR();
+    rec.lang = 'en-IN'; rec.continuous = true; rec.interimResults = true;
+    finalText = ''; box.value = '';
+    rec.onresult = e => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const piece = e.results[i][0].transcript;
+        if (e.results[i].isFinal) finalText += piece + ' '; else interim += piece;
+      }
+      box.value = (finalText + interim).trim();
+      clearTimeout(timer); timer = setTimeout(finish, SILENCE_MS);   // restart the quiet-moment timer
+    };
+    rec.onerror = e => {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        say('Microphone access was blocked. Allow it in the address bar, or type instead.', 'bot');
+      }
+      if (e.error !== 'no-speech') { listening = true; finish(); }
+    };
+    rec.onend = () => { if (listening) finish(); };  // the browser stopped by itself: send what we have
+    try { rec.start(); } catch (_) { return; }
+    listening = true;
+    mic.classList.add('on');
+    box.placeholder = 'Listening… pause for 2 seconds to send, or tap the mic';
+    timer = setTimeout(finish, 8000);                // nothing said at all: give up quietly
   });
 } else { $('#mic').style.display = 'none'; }
 

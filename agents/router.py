@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 _MULT = {"k": 1_000, "thousand": 1_000, "lakh": 100_000, "lakhs": 100_000, "lac": 100_000,
          "crore": 10_000_000, "m": 1_000_000, "million": 1_000_000}
 _NUM = r"(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|lakhs?|lac|crore|m|million)?"
+MIN_MONTHLY = 1_000  # a monthly income or expense below this is almost certainly a cut-off number like "25"
 
 
 def _to_amount(num: str, mult: str | None) -> float:
@@ -46,6 +47,7 @@ class Route:
     tool: str | None
     args: dict = field(default_factory=dict)
     note: str = ""  # shown when no tool matches
+    partial: dict = field(default_factory=dict)  # half-given budget the conversation should remember
 
 
 def route(utterance: str) -> Route:
@@ -87,8 +89,16 @@ def route(utterance: str) -> Route:
 
     inc = _find_amount(r"(?:income|earn|salary)[^\d]{0,20}" + _NUM, t)
     exp = _find_amount(r"(?:expenses?|spend)[^\d]{0,20}" + _NUM, t)
+    given = {k: v for k, v in (("monthly_income", inc), ("monthly_expenses", exp)) if v}
+    if given and any(v < MIN_MONTHLY for v in given.values()):
+        return Route(None, note="That sounds low for a monthly amount. Please say the full number, "
+                                "for example: my income is 25000 and my expenses are 14000.")
     if inc and exp:
         return Route("save_my_budget", {"monthly_income": inc, "monthly_expenses": exp})
+    if given:
+        what = "income" if inc else "expenses"
+        ask = "What are your regular monthly expenses?" if inc else "What is your monthly income?"
+        return Route(None, partial=given, note=f"Got your {what}: {next(iter(given.values())):,.0f} a month. {ask}")
 
     if re.search(r"\b(should i|review|good idea|worth it|take it)\b", t) and _parse_offer(t):
         return Route("review_loan_offer", _parse_offer(t))
