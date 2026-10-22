@@ -102,25 +102,51 @@ def add_loan(lender_label: str, principal: float, annual_rate: float, term_month
     """Record a loan the user has taken so Sahayak can track repayments. lender_label is a nickname
     like 'self-help group' or 'shop credit'; no account numbers are stored."""
     cost = loan_cost(principal, annual_rate, term_months, fees, rate_type)
-    loan_id = store.add_loan(user_id, lender_label, principal, annual_rate, term_months, fees, rate_type, cost.emi)
-    return {"speech": f"I have added your {lender_label} loan. Your payment is {money(cost.emi)} a month.",
-            "loan_id": loan_id, "emi": round(cost.emi, 2)}
+    store.add_loan(user_id, lender_label, principal, annual_rate, term_months, fees, rate_type, cost.emi)
+    number = len(store.list_loans(user_id))  # per-user number: the user's first loan is always loan 1
+    return {"speech": f"I have added your {lender_label} loan as loan {number}. "
+                      f"Your payment is {money(cost.emi)} a month.",
+            "loan_number": number, "emi": round(cost.emi, 2)}
+
+
+def _resolve_loan(user_id: str, loan_number: int, lender_label: str) -> dict:
+    """Find which of the user's loans is meant. Voice users say a name or a number, never a database id."""
+    loans = store.list_loans(user_id)
+    if not loans:
+        raise ValueError("You have no saved loans yet. Add one first.")
+    if lender_label:
+        hits = [l for l in loans if lender_label.lower() in l["lender_label"].lower()]
+        if len(hits) == 1:
+            return hits[0]
+        raise ValueError(f"I could not find exactly one loan matching '{lender_label}'.")
+    if loan_number:
+        if 1 <= loan_number <= len(loans):
+            return loans[loan_number - 1]
+        raise ValueError(f"You have {len(loans)} loan{'s' if len(loans) != 1 else ''}, so there is no loan {loan_number}.")
+    if len(loans) == 1:
+        return loans[0]
+    raise ValueError("Which loan did you pay? Say its name or number.")
 
 
 @mcp.tool()
-def log_repayment(loan_id: int, amount: float, user_id: str = DEFAULT_USER) -> dict:
-    """Record a repayment the user made on one of their loans."""
+def log_repayment(amount: float, loan_number: int = 0, lender_label: str = "",
+                  user_id: str = DEFAULT_USER) -> dict:
+    """Record a repayment the user made. Say which loan by number or by name; if the user has only one loan,
+    neither is needed."""
     if amount <= 0:
         raise ValueError("amount must be positive")
-    store.log_repayment(user_id, loan_id, amount)
-    return {"speech": f"Recorded a payment of {money(amount)}. Well done for staying on track.", "logged": True}
+    loan = _resolve_loan(user_id, loan_number, lender_label)
+    store.log_repayment(user_id, loan["id"], amount)
+    return {"speech": f"Recorded a payment of {money(amount)} on your {loan['lender_label']} loan. "
+                      f"Well done for staying on track.", "logged": True}
 
 
 @mcp.tool()
 def my_loans(user_id: str = DEFAULT_USER) -> dict:
     """Summarise the user's loans: what is owed, what is paid, and the monthly payment total."""
     loans = store.list_loans(user_id)
-    for l in loans:
+    for n, l in enumerate(loans, start=1):
+        l["number"] = n
         l["total_due"] = round(l["emi"] * l["term_months"], 2)
         l["remaining"] = round(max(l["total_due"] - l["paid"], 0), 2)
     monthly = sum(l["emi"] for l in loans if l["remaining"] > 0)

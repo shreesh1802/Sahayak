@@ -1,4 +1,4 @@
-"""End-to-end smoke test against a running Sahayak MCP server.
+﻿"""End-to-end smoke test against a running Sahayak MCP server.
 
     python -m eval.smoke [http://127.0.0.1:8000/mcp]
 
@@ -19,6 +19,7 @@ from mcp.types import ElicitResult
 
 URL = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8000/mcp"
 BUDGET_MS = 500
+UID = f"smoke-{int(time.time())}"
 failures: list[str] = []
 asked: list[str] = []
 
@@ -58,7 +59,7 @@ async def main() -> None:
 
             # elicitation path: no rate_type given, server must ask
             res, d, ms = await call(s, "explain_loan", {"principal": 50000, "annual_rate": 24, "term_months": 12,
-                                                       "fees": 2000, "user_id": "smoke"})
+                                                       "fees": 2000, "user_id": UID})
             check("explain_loan asked a follow-up question", len(asked) >= 1 and "flat" in asked[0].lower())
             check("explain_loan flat numbers", abs(d["cost"]["emi"] - 5166.67) < 0.01 or d["cost"]["rate_type"] == "flat",
                   f"emi={d['cost']['emi']}")
@@ -68,31 +69,33 @@ async def main() -> None:
 
             # no elicitation when rate_type is given; latency measured here
             res, d, ms = await call(s, "explain_loan", {"principal": 100000, "annual_rate": 12, "term_months": 12,
-                                                       "rate_type": "reducing", "user_id": "smoke"})
+                                                       "rate_type": "reducing", "user_id": UID})
             check(f"explain_loan latency < {BUDGET_MS} ms", ms < BUDGET_MS, f"{ms:.0f} ms")
             check("reducing EMI is 8884.88", abs(d["cost"]["emi"] - 8884.88) < 0.01, str(d["cost"]["emi"]))
 
-            res, d, ms = await call(s, "check_affordability", {"new_emi": 4500, "user_id": "smoke"})
+            res, d, ms = await call(s, "check_affordability", {"new_emi": 4500, "user_id": UID})
             check("check_affordability asked for budget", any("income" in q.lower() for q in asked))
             check("affordability verdict returned", d.get("affordability", {}).get("verdict") in
                   {"comfortable", "tight", "unaffordable"}, str(d.get("affordability", {}).get("verdict")))
 
             res, d, _ = await call(s, "add_loan", {"lender_label": "shop credit", "principal": 12000, "annual_rate": 18,
-                                                  "term_months": 12, "rate_type": "reducing", "user_id": "smoke"})
-            loan_id = d["loan_id"]
-            res, d, _ = await call(s, "log_repayment", {"loan_id": loan_id, "amount": 1000, "user_id": "smoke"})
-            check("log_repayment ok", d.get("logged") is True)
-            res, d, _ = await call(s, "my_loans", {"user_id": "smoke"})
+                                                  "term_months": 12, "rate_type": "reducing", "user_id": UID})
+            check("loan numbers are per user, starting at 1", d["loan_number"] >= 1)
+            res, d, _ = await call(s, "log_repayment", {"amount": 1000, "lender_label": "shop", "user_id": UID})
+            check("log_repayment by name ok", d.get("logged") is True)
+            res, d, _ = await call(s, "my_loans", {"user_id": UID})
             check("my_loans shows repayment", d["loans"] and d["loans"][0]["paid"] == 1000)
 
-            res, d, _ = await call(s, "log_repayment", {"loan_id": loan_id, "amount": 500, "user_id": "someone-else"})
+            res, d, _ = await call(s, "log_repayment", {"amount": 500, "loan_number": 1, "user_id": "someone-else"})
             check("cannot log repayment on another user's loan", res.isError)
+            res, d, _ = await call(s, "log_repayment", {"amount": 500, "loan_number": 7, "user_id": UID})
+            check("unknown loan number is rejected", res.isError)
 
             res, d, _ = await call(s, "explain_loan", {"principal": -5, "annual_rate": 10, "term_months": 12,
-                                                      "rate_type": "flat", "user_id": "smoke"})
+                                                      "rate_type": "flat", "user_id": UID})
             check("invalid input is rejected, not computed", res.isError)
 
-            res, d, _ = await call(s, "next_lesson", {"user_id": "smoke"})
+            res, d, _ = await call(s, "next_lesson", {"user_id": UID})
             check("next_lesson returns a lesson", "lesson" in d)
 
     print(f"\n{len(failures)} failure(s)" if failures else "\nall checks passed")

@@ -129,7 +129,7 @@ function render(c) {
       ${a.reasons.map(r => `<div class="warnbox">${r}</div>`).join('')}`;
   } else if (c.tool === 'my_loans') {
     card.innerHTML = c.loans.length ? c.loans.map(l => `
-      <div style="margin-bottom:12px"><b>#${l.id} ${l.lender_label}</b>
+      <div style="margin-bottom:12px"><b>#${l.number} ${l.lender_label}</b>
         ${row('Payment', fmt(l.emi) + ' / month')}
         ${row('Paid so far', fmt(l.paid) + ' of ' + fmt(l.total_due))}
         <div class="prog"><i style="width:${Math.min(100, l.paid / l.total_due * 100)}%"></i></div></div>`).join('')

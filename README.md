@@ -1,4 +1,4 @@
-# Sahayak
+﻿# Sahayak
 
 **A voice-first money coach for first-time borrowers, built as an Alexa+ add-on (MCP server).**
 
@@ -27,11 +27,11 @@ Built for the **Amazon Developer Hackathon 2026, Alexa+ track.**
 ## How it works
 
 ```
- Alexa+ (MCP client)  ──Streamable HTTP──▶  Sahayak MCP server
-   language, speech,        spec 2025-11-25      tools · resources · elicitation
-   screen rendering                                     │
-                                                        ▼
-                                          core/ loan maths · SQLite memory
+ Alexa+ (MCP client)  â”€â”€Streamable HTTPâ”€â”€â–¶  Sahayak MCP server
+   language, speech,        spec 2025-11-25      tools Â· resources Â· elicitation
+   screen rendering                                     â”‚
+                                                        â–¼
+                                          core/ loan maths Â· SQLite memory
 ```
 
 - **`server/mcp_server.py`** is the Alexa+ add-on: 7 tools, 1 resource, and elicitation for missing details.
@@ -39,7 +39,7 @@ Built for the **Amazon Developer Hackathon 2026, Alexa+ track.**
   rate via IRR, affordability). **Every number that is spoken comes from this calculator; no language
   model touches the figures.**
 - **`core/store.py`** is the memory (SQLite): budget, loans, repayments and lesson progress persist across sessions.
-- **`web/`** is a simulated Alexa+ experience: an Echo Show–style screen with voice input, spoken replies and
+- **`web/`** is a simulated Alexa+ experience: an Echo Showâ€“style screen with voice input, spoken replies and
   cards. It acts as an MCP client, so it exercises the real server over the real protocol.
 - **`agents/router.py`** is a rule-based intent router standing in for Alexa+'s own language understanding.
 
@@ -62,8 +62,8 @@ Open http://127.0.0.1:8080 and use the quick-start buttons, type, or tap the mic
 ## Tests
 
 ```bash
-python -m pytest                 # 22 unit tests: loan maths and the intent router
-python -m eval.smoke             # 14 end-to-end checks against a running server
+python -m pytest                 # 24 unit tests: loan maths and the intent router
+python -m eval.smoke             # 16 end-to-end checks against a running server
 ```
 
 The end-to-end check also verifies the Alexa+ latency budget (under 500 ms; measured about 8 ms per tool call),

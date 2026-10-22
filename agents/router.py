@@ -39,9 +39,17 @@ def route(utterance: str) -> Route:
     if re.search(r"\b(my loans?|what do i owe|loan summary)\b", t):
         return Route("my_loans")
 
-    m = re.search(r"(?:paid|pay|repaid)\s+" + _NUM + r".*?loan\s*(\d+)", t)
+    m = re.search(r"\b(?:paid|repaid)\s+" + _NUM + r"(.*)$", t)
     if m:
-        return Route("log_repayment", {"amount": _to_amount(m.group(1), m.group(2)), "loan_id": int(m.group(3))})
+        args: dict = {"amount": _to_amount(m.group(1), m.group(2))}
+        rest = m.group(3)
+        by_number = re.search(r"\bloan\s*(?:number\s*)?(\d+)", rest)
+        by_name = re.search(r"\b(?:on|towards|toward|for)\s+(?:my\s+|the\s+)?([a-z][a-z \-]{1,30}?)(?:\s+loan)?\s*$", rest)
+        if by_number:
+            args["loan_number"] = int(by_number.group(1))
+        elif by_name:
+            args["lender_label"] = by_name.group(1).strip()
+        return Route("log_repayment", args)
 
     if re.search(r"\b(add|save|record|took|taken|got)\b.*\bloan\b", t) and not re.search(r"\b(offered|should i|considering)\b", t):
         principal = _find_amount(r"\bof\s+" + _NUM, t) or _find_amount(r"loan\s*" + _NUM, t)

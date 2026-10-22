@@ -23,9 +23,19 @@ def test_budget():
     assert r.tool == "save_my_budget" and r.args == {"monthly_income": 25_000, "monthly_expenses": 14_000}
 
 
-def test_repayment():
+def test_repayment_by_number():
     r = route("I paid 2,000 on loan 1")
-    assert (r.tool, r.args) == ("log_repayment", {"amount": 2_000, "loan_id": 1})
+    assert (r.tool, r.args) == ("log_repayment", {"amount": 2_000, "loan_number": 1})
+
+
+def test_repayment_by_name():
+    r = route("I paid 1500 on my shop credit loan")
+    assert (r.tool, r.args) == ("log_repayment", {"amount": 1_500, "lender_label": "shop credit"})
+
+
+def test_repayment_without_naming_a_loan():
+    r = route("I paid 500 today")
+    assert (r.tool, r.args) == ("log_repayment", {"amount": 500})
 
 
 def test_add_loan_with_label():

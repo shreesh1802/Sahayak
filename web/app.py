@@ -1,4 +1,4 @@
-"""Simulated Alexa+ front end.
+﻿"""Simulated Alexa+ front end.
 
 Plays the role of Alexa+ (the MCP *client*): takes what the user says, picks a tool on the
 Sahayak MCP server, calls it over Streamable HTTP, answers the server's follow-up questions
@@ -67,7 +67,8 @@ async def _run_tool(turn: Turn, tool: str, args: dict, user_id: str):
             await session.initialize()
             result = await session.call_tool(tool, {**args, "user_id": user_id})
             if result.isError:
-                return {"error": " ".join(getattr(c, "text", "") for c in result.content)}
+                msg = " ".join(getattr(c, "text", "") for c in result.content)
+                return {"error": re.sub(r"^Error executing tool \w+:\s*", "", msg)}
             return result.structuredContent or json.loads(result.content[0].text)
 
 
