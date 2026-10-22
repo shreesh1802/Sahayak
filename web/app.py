@@ -22,7 +22,9 @@ from starlette.applications import Starlette
 from starlette.responses import FileResponse, JSONResponse
 from starlette.routing import Route as HttpRoute
 
-from agents.router import _NUM, MIN_MONTHLY, Route, _to_amount, low_note, route, suggest_full
+from core.narrate import money
+from agents.router import (_NUM, MIN_EMI, MIN_MONTHLY, Route, _to_amount, low_note, route, suggest_full,
+                           words_to_digits)
 
 MCP_URL = os.environ.get("SAHAYAK_MCP_URL", "http://127.0.0.1:8000/mcp")
 HERE = Path(__file__).parent
@@ -36,6 +38,7 @@ class Turn:
         self.answer: asyncio.Future | None = None
         self.task: asyncio.Task | None = None
         self.tool = ""
+        self.preface = ""  # spoken before the tool's answer, e.g. which saved value was reused
         self.args: dict = {}
         self.elicited = False
         self.waited = 0.0  # seconds spent waiting for the user to answer a follow-up question
@@ -97,6 +100,36 @@ def remember_budget(state: dict, r: Route, text: str) -> Route:
     """
     pending = dict(state.get("budget", {}))
     suspect = state.get("suspect")
+    heard = words_to_digits(text.lower())  # the browser sometimes writes numbers as words
+
+    # "How much would the monthly payment be?" was asked: a bare number (or a yes/no to a query) answers it.
+    if r.ask:
+        state.pop("budget", None); state.pop("suspect", None); state.pop("ask_guess", None); state.pop("ask", None)
+        if state.get("last_emi"):  # "is the payment affordable?" right after an offer: use that offer's payment
+            emi = state["last_emi"]
+            return Route("check_affordability", {"new_emi": emi},
+                         note=f"Using the {money(emi)} monthly payment from the offer we just looked at. ")
+        state["ask"] = r.ask
+        return r
+    if state.get("ask") and r.tool is None and not (r.partial or r.suspect):
+        low = text.lower()
+        guess = state.get("ask_guess")
+        if guess is not None and re.search(r"\b(yes|yeah|yep|yup|correct|right|ok|okay|sure)\b", low):
+            state.pop("ask"); state.pop("ask_guess")
+            return Route("check_affordability", {"new_emi": guess})
+        if guess is not None and re.search(r"\b(no|nope|nah)\b", low):
+            state.pop("ask_guess")
+            return Route(None, note="Okay. Please say or type the full monthly payment, for example 4500.")
+        if m := re.search(_NUM, heard, re.I):
+            value = _to_amount(m.group(1), m.group(2))
+            if value < MIN_EMI:
+                state["ask_guess"] = suggest_full(value)
+                return Route(None, note=f"I heard {value:,.0f} for the monthly payment, which sounds low. "
+                                        f"Did you mean {suggest_full(value):,.0f}? Say yes, or say the full amount.")
+            state.pop("ask"); state.pop("ask_guess", None)
+            return Route("check_affordability", {"new_emi": value})
+    elif state.get("ask") and (r.tool is not None or r.partial or r.suspect):
+        state.pop("ask"); state.pop("ask_guess", None)  # the user moved on
 
     # An amount that sounds low was queried ("I heard 8... did you mean 8,000?"): read the reply to that question.
     if suspect and r.tool is None and not r.partial and not r.suspect:
@@ -115,7 +148,7 @@ def remember_budget(state: dict, r: Route, text: str) -> Route:
     if r.partial:
         state.pop("suspect", None)
         pending.update(r.partial)
-    elif r.tool is None and pending and (m := re.search(_NUM, text, re.I)):
+    elif r.tool is None and pending and (m := re.search(_NUM, heard, re.I)):
         value = _to_amount(m.group(1), m.group(2))
         field_ = "monthly_expenses" if "monthly_income" in pending else "monthly_income"
         if value < MIN_MONTHLY:
@@ -139,6 +172,7 @@ def remember_budget(state: dict, r: Route, text: str) -> Route:
 async def chat(request):
     body = await request.json()
     sid = body.get("session") or uuid.uuid4().hex
+    conv_state = CONV.setdefault(body.get("conv") or sid, {})
     text = (body.get("text") or "").strip()
     user_id = body.get("user", "demo")
     turn = TURNS.get(sid)
@@ -146,11 +180,11 @@ async def chat(request):
     if turn and turn.answer and not turn.answer.done():
         turn.answer.set_result(text)  # the user is answering the server's follow-up question
     else:
-        r = remember_budget(CONV.setdefault(body.get("conv") or sid, {}), route(text), text)
+        r = remember_budget(conv_state, route(text), text)
         if r.tool is None:
             return JSONResponse({"session": sid, "speech": r.note, "card": None})
         turn = TURNS[sid] = Turn()
-        turn.tool, turn.args = r.tool, r.args
+        turn.tool, turn.args, turn.preface = r.tool, r.args, r.note
         turn.task = asyncio.create_task(_run_tool(turn, r.tool, r.args, user_id))
 
     waiter = asyncio.create_task(turn.question.get())
@@ -171,8 +205,10 @@ async def chat(request):
     if "error" in data:
         return JSONResponse({"session": sid, "speech": f"Sorry: {data['error']}", "card": None,
                              "trace": {**turn.trace(), "event": "tool error"}})
-    return JSONResponse({"session": sid, "speech": data.get("speech", ""), "card": {"tool": turn.tool, **data},
-                         "trace": turn.trace()})
+    if isinstance(data.get("cost"), dict) and "emi" in data["cost"]:
+        conv_state["last_emi"] = data["cost"]["emi"]  # so "is the payment affordable?" can refer to it
+    return JSONResponse({"session": sid, "speech": turn.preface + data.get("speech", ""),
+                         "card": {"tool": turn.tool, **data}, "trace": turn.trace()})
 
 
 async def index(_request):

@@ -6,6 +6,59 @@ def turn(state, text):
     return remember_budget(state, route(text), text)
 
 
+def test_affordability_question_remembers_it_asked_for_the_payment():
+    # the screenshot: "is the payment affordable" -> "How much...?" -> "14"
+    state = {}
+    r = turn(state, "if the payment is affordable")
+    assert r.tool is None and "How much" in r.note
+    r = turn(state, "4500")
+    assert (r.tool, r.args) == ("check_affordability", {"new_emi": 4_500}) and "ask" not in state
+
+
+def test_affordable_after_an_offer_reuses_that_offers_payment():
+    state = {"last_emi": 5166.67}  # set by the app after explaining or reviewing an offer
+    r = turn(state, "is the payment affordable")
+    assert (r.tool, r.args) == ("check_affordability", {"new_emi": 5166.67})
+    assert "5,167" in r.note and "offer we just looked at" in r.note
+    assert "ask" not in state
+
+
+def test_an_explicit_payment_still_beats_the_remembered_one():
+    state = {"last_emi": 5166.67}
+    assert turn(state, "can I afford 9000 a month").args == {"new_emi": 9_000}
+
+
+def test_cut_off_payment_is_queried_then_confirmed():
+    state = {}
+    turn(state, "is the payment affordable")
+    r = turn(state, "14")
+    assert r.tool is None and "Did you mean 14,000?" in r.note
+    r = turn(state, "yes")
+    assert (r.tool, r.args) == ("check_affordability", {"new_emi": 14_000}) and not state
+
+
+def test_cut_off_payment_then_no_then_full_amount():
+    state = {}
+    turn(state, "is the payment affordable")
+    turn(state, "14")
+    assert "full monthly payment" in turn(state, "no").note
+    assert turn(state, "4500").args == {"new_emi": 4_500}
+
+
+def test_payment_answered_with_number_words():
+    state = {}
+    turn(state, "is the payment affordable")
+    assert turn(state, "around four thousand five hundred").args == {"new_emi": 4_500}
+
+
+def test_pending_payment_question_is_dropped_when_user_moves_on():
+    state = {}
+    turn(state, "is the payment affordable")
+    assert turn(state, "teach me something").tool == "next_lesson"
+    assert "ask" not in state
+    assert turn(state, "14000").tool is None  # a stray number is no longer an answer to anything
+
+
 def test_budget_given_in_two_turns_is_completed():
     state = {}
     r1 = turn(state, "my income is 25000")

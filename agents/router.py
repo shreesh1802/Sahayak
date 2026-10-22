@@ -12,6 +12,7 @@ _MULT = {"k": 1_000, "thousand": 1_000, "lakh": 100_000, "lakhs": 100_000, "lac"
          "crore": 10_000_000, "m": 1_000_000, "million": 1_000_000}
 _NUM = r"(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|lakhs?|lac|crore|m|million)?"
 MIN_MONTHLY = 1_000  # a monthly income or expense below this is almost certainly a cut-off number like "25"
+MIN_EMI = 100  # a loan instalment below this is almost certainly a cut-off number like "14"
 
 
 _UNITS = {w: i for i, w in enumerate(
@@ -109,6 +110,7 @@ class Route:
     note: str = ""  # shown when no tool matches
     partial: dict = field(default_factory=dict)  # half-given budget the conversation should remember
     suspect: dict = field(default_factory=dict)  # amounts that sound too low; the conversation asks to confirm
+    ask: dict = field(default_factory=dict)  # a question just asked; the next bare number answers it
 
 
 def route(utterance: str) -> Route:
@@ -168,7 +170,8 @@ def route(utterance: str) -> Route:
         emi = _find_amount(r"(?:afford|pay)[^\d]{0,15}" + _NUM, t) or _find_amount(_NUM, t)
         if emi:
             return Route("check_affordability", {"new_emi": emi})
-        return Route(None, note="How much would the monthly payment be?")
+        return Route(None, ask={"tool": "check_affordability", "slot": "new_emi"},
+                     note="How much would the monthly payment be?")
 
     if re.search(r"\b(loan|borrow|lend|credit|emi|interest)\b", t):
         args = _parse_offer(t)
