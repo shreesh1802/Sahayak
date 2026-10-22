@@ -103,6 +103,8 @@ async def main() -> None:
                                                        "rate_type": "reducing", "user_id": UID})
             check(f"explain_loan latency < {BUDGET_MS} ms", ms < BUDGET_MS, f"{ms:.0f} ms")
             check("reducing EMI is 8884.88", abs(d["cost"]["emi"] - 8884.88) < 0.01, str(d["cost"]["emi"]))
+            check("result carries structuredContent (the MCP App card reads it)",
+                  isinstance(res.structuredContent, dict) and "speech" in res.structuredContent)
 
             # multi-agent review: separate user, so its follow-up questions are counted on their own
             before = len(asked)

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any  # tools are annotated dict[str, Any] so the SDK sends structuredContent, which the MCP App reads
 
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import BaseModel, Field
@@ -72,7 +73,7 @@ async def _ask_rate_type(ctx: Context, rate_type: str) -> tuple[str, bool]:
 
 @mcp.tool(meta=UI_META)
 async def explain_loan(ctx: Context, principal: float, annual_rate: float, term_months: int,
-                       fees: float = 0.0, rate_type: str = "", user_id: str = DEFAULT_USER) -> dict:
+                       fees: float = 0.0, rate_type: str = "", user_id: str = DEFAULT_USER) -> dict[str, Any]:
     """Explain what a loan really costs, in plain words: monthly payment, total repayment,
     fees, and the true yearly rate. Use when someone is offered or considering a loan.
     rate_type is 'flat' or 'reducing'; if unknown, the user is asked."""
@@ -87,7 +88,7 @@ async def explain_loan(ctx: Context, principal: float, annual_rate: float, term_
 
 @mcp.tool(meta=UI_META)
 async def review_loan_offer(ctx: Context, principal: float, annual_rate: float, term_months: int,
-                            fees: float = 0.0, rate_type: str = "", user_id: str = DEFAULT_USER) -> dict:
+                            fees: float = 0.0, rate_type: str = "", user_id: str = DEFAULT_USER) -> dict[str, Any]:
     """Review a whole loan offer in one go: the true cost, whether the payment fits the user's budget,
     questions to ask the lender, and the most relevant lesson. Use when someone asks whether they should
     take a loan or wants an offer reviewed. Several specialist agents run behind this one tool, and a
@@ -112,7 +113,7 @@ async def review_loan_offer(ctx: Context, principal: float, annual_rate: float, 
 
 
 @mcp.tool(meta=UI_META)
-def save_my_budget(monthly_income: float, monthly_expenses: float, user_id: str = DEFAULT_USER) -> dict:
+def save_my_budget(monthly_income: float, monthly_expenses: float, user_id: str = DEFAULT_USER) -> dict[str, Any]:
     """Remember the user's monthly income and regular expenses, so affordability checks can reuse them."""
     if monthly_income <= 0 or monthly_expenses < 0:
         raise ValueError("income must be positive and expenses cannot be negative")
@@ -121,7 +122,7 @@ def save_my_budget(monthly_income: float, monthly_expenses: float, user_id: str 
 
 
 @mcp.tool(meta=UI_META)
-async def check_affordability(ctx: Context, new_emi: float, user_id: str = DEFAULT_USER) -> dict:
+async def check_affordability(ctx: Context, new_emi: float, user_id: str = DEFAULT_USER) -> dict[str, Any]:
     """Check whether a monthly loan payment is realistic against the user's saved income, expenses and
     existing loans. Asks for income and expenses if not yet saved."""
     profile = store.get_profile(user_id)
@@ -138,7 +139,7 @@ async def check_affordability(ctx: Context, new_emi: float, user_id: str = DEFAU
 
 @mcp.tool(meta=UI_META)
 def add_loan(lender_label: str, principal: float, annual_rate: float, term_months: int,
-             rate_type: str, fees: float = 0.0, user_id: str = DEFAULT_USER) -> dict:
+             rate_type: str, fees: float = 0.0, user_id: str = DEFAULT_USER) -> dict[str, Any]:
     """Record a loan the user has taken so Sahayak can track repayments. lender_label is a nickname
     like 'self-help group' or 'shop credit'; no account numbers are stored."""
     cost = loan_cost(principal, annual_rate, term_months, fees, rate_type)
@@ -149,7 +150,7 @@ def add_loan(lender_label: str, principal: float, annual_rate: float, term_month
             "loan_number": number, "emi": round(cost.emi, 2)}
 
 
-def _resolve_loan(user_id: str, loan_number: int, lender_label: str) -> dict:
+def _resolve_loan(user_id: str, loan_number: int, lender_label: str) -> dict[str, Any]:
     """Find which of the user's loans is meant. Voice users say a name or a number, never a database id."""
     loans = store.list_loans(user_id)
     if not loans:
@@ -170,7 +171,7 @@ def _resolve_loan(user_id: str, loan_number: int, lender_label: str) -> dict:
 
 @mcp.tool(meta=UI_META)
 def log_repayment(amount: float, loan_number: int = 0, lender_label: str = "",
-                  user_id: str = DEFAULT_USER) -> dict:
+                  user_id: str = DEFAULT_USER) -> dict[str, Any]:
     """Record a repayment the user made. Say which loan by number or by name; if the user has only one loan,
     neither is needed."""
     if amount <= 0:
@@ -182,7 +183,7 @@ def log_repayment(amount: float, loan_number: int = 0, lender_label: str = "",
 
 
 @mcp.tool(meta=UI_META)
-def my_loans(user_id: str = DEFAULT_USER) -> dict:
+def my_loans(user_id: str = DEFAULT_USER) -> dict[str, Any]:
     """Summarise the user's loans: what is owed, what is paid, and the monthly payment total."""
     loans = store.list_loans(user_id)
     for n, l in enumerate(loans, start=1):
@@ -197,7 +198,7 @@ def my_loans(user_id: str = DEFAULT_USER) -> dict:
 
 
 @mcp.tool(meta=UI_META)
-def next_lesson(user_id: str = DEFAULT_USER, mark_previous_done: bool = True) -> dict:
+def next_lesson(user_id: str = DEFAULT_USER, mark_previous_done: bool = True) -> dict[str, Any]:
     """Give the next short money lesson, one the user has not heard yet, with a quiz question."""
     done = store.completed_lessons(user_id)
     lesson = lesson_bank.next_lesson(done)

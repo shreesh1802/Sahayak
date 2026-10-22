@@ -88,7 +88,22 @@ Entries are written as they happened. Fields: task, steps, expected vs actual, s
   now reads the host from an environment variable and refuses wildcards, so the protection stays on.
 - **Suggestion:** add that setting to the quickstart's local-development section.
 
-## 11. Python 3.14: `pip install strands-agents mcp` stalled
+## 11. A tool annotated `-> dict` silently sends no `structuredContent`, and MCP Apps views read it
+- **Task:** make the on-screen card (an MCP App view) draw from a tool's result.
+- **Steps:** returned a plain `dict` from each tool, annotated `-> dict`, and built the view to read
+  `result.structuredContent`, as the MCP Apps spec describes the tool result.
+- **Expected:** the dict arrives as `structuredContent`.
+- **Actual:** with `mcp` 1.30 a bare `dict` annotation produces no output schema and no `structuredContent`; the result
+  carries only a JSON text blob. Nothing warns about it. My own simulator hid the problem by parsing that text, so it
+  only surfaced while building a standalone test page that passes the server's result through untouched. A real host
+  would have given the view an empty result.
+- **Severity:** medium to high: the failure is silent and only appears on a host that does not parse text.
+- **Workaround:** annotate tools `-> dict[str, Any]` (the SDK then emits `structuredContent`), make the view fall back
+  to parsing the JSON text, and test `structuredContent` against a live server.
+- **Suggestion:** warn when a tool returns a dict but no output schema is declared, and say in the MCP Apps docs that
+  views need `structuredContent`.
+
+## 12. Python 3.14: `pip install strands-agents mcp` stalled
 - **Task:** install the MCP SDK and Strands Agents in a fresh venv on Python 3.14.
 - **Steps:** `pip install mcp strands-agents uvicorn boto3` (first with `boto3` listed separately, then without).
 - **Expected:** a normal install.
