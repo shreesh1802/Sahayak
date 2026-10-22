@@ -17,7 +17,7 @@ from core import lessons as lesson_bank
 from core import store
 from core.loan import (RATE_TYPES, check_affordability as _affordability,
                        compare_flat_vs_reducing, loan_cost)
-from core.narrate import narrate_affordability, narrate_loan
+from core.narrate import money, narrate_affordability, narrate_loan
 
 DEFAULT_USER = "demo"
 
@@ -103,7 +103,7 @@ def add_loan(lender_label: str, principal: float, annual_rate: float, term_month
     like 'self-help group' or 'shop credit'; no account numbers are stored."""
     cost = loan_cost(principal, annual_rate, term_months, fees, rate_type)
     loan_id = store.add_loan(user_id, lender_label, principal, annual_rate, term_months, fees, rate_type, cost.emi)
-    return {"speech": f"I have added your {lender_label} loan. Your payment is {cost.emi:,.0f} a month.",
+    return {"speech": f"I have added your {lender_label} loan. Your payment is {money(cost.emi)} a month.",
             "loan_id": loan_id, "emi": round(cost.emi, 2)}
 
 
@@ -113,7 +113,7 @@ def log_repayment(loan_id: int, amount: float, user_id: str = DEFAULT_USER) -> d
     if amount <= 0:
         raise ValueError("amount must be positive")
     store.log_repayment(user_id, loan_id, amount)
-    return {"speech": f"Recorded a payment of {amount:,.0f}. Well done for staying on track.", "logged": True}
+    return {"speech": f"Recorded a payment of {money(amount)}. Well done for staying on track.", "logged": True}
 
 
 @mcp.tool()
@@ -126,7 +126,7 @@ def my_loans(user_id: str = DEFAULT_USER) -> dict:
     monthly = sum(l["emi"] for l in loans if l["remaining"] > 0)
     speech = ("You have no loans saved yet." if not loans else
               f"You have {len(loans)} loan{'s' if len(loans) != 1 else ''}. "
-              f"Your monthly payments total {monthly:,.0f}.")
+              f"Your monthly payments total {money(monthly)}.")
     return {"speech": speech, "loans": loans, "monthly_total": round(monthly, 2)}
 
 

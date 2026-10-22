@@ -28,6 +28,22 @@ def test_repayment():
     assert (r.tool, r.args) == ("log_repayment", {"amount": 2_000, "loan_id": 1})
 
 
+def test_add_loan_with_label():
+    r = route("add a loan called shop credit of 12000 at 18 percent for 12 months reducing")
+    assert r.tool == "add_loan"
+    assert r.args == {"lender_label": "shop credit", "principal": 12_000, "annual_rate": 18,
+                      "term_months": 12, "rate_type": "reducing", "fees": 0.0}
+
+
+def test_add_loan_without_rate_type_asks_instead_of_guessing():
+    r = route("add a loan of 12000 at 18 percent for 12 months")
+    assert r.tool is None and "flat or" in r.note
+
+
+def test_offer_is_explained_not_saved():
+    assert route("I was offered a loan of 50000 at 24 percent flat for 12 months").tool == "explain_loan"
+
+
 def test_simple_intents():
     assert route("teach me something").tool == "next_lesson"
     assert route("show my loans").tool == "my_loans"

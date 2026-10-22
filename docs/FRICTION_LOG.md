@@ -34,7 +34,25 @@ Entries are written as they happened. Fields: task, steps, expected vs actual, s
 - **Severity:** high for first-time AWS users: Bedrock needs an account and a payment method.
 - **Suggestion:** state "sold out" at the top of the rules, and offer a no-card sandbox for Bedrock.
 
-## 5. Python 3.14: `pip install strands-agents mcp` stalled
+## 5. Bedrock playground: `ValidationException: Operation not allowed` on a brand-new account
+- **Task:** call Amazon Nova Lite in the Bedrock playground (ap-southeast-2) to add a model layer.
+- **Steps:** created an AWS account via Builder ID, opened Bedrock, chose Nova Lite, sent "hello".
+- **Expected:** a model reply. The Model access page says serverless models are enabled automatically on first use.
+- **Actual:** a red `ValidationException: Operation not allowed`, with no hint about the cause (account activation,
+  plan restriction or payment verification).
+- **Severity:** high. It blocked the AWS Builder mini challenge entirely.
+- **Workaround:** none found. The submission does not use Bedrock.
+- **Suggestion:** return an actionable message ("account not yet verified", "upgrade from the free plan") instead of a
+  generic validation error.
+
+## 6. `pip install mcp` pulls 2.x, which breaks 1.x code
+- **Task:** install the MCP Python SDK and import `FastMCP`.
+- **Actual:** the latest release (2.3.0) renamed `FastMCP` to `MCPServer` and changed other APIs. The import error
+  itself is clear and suggests `mcp<2`, but existing tutorials and the quickstart pattern still assume 1.x.
+- **Severity:** medium. **Workaround:** `pip install "mcp<2"`.
+- **Suggestion:** state the supported SDK major version on the hackathon Resources page.
+
+## 7. Python 3.14: `pip install strands-agents mcp` stalled
 - **Task:** install the MCP SDK and Strands Agents in a fresh venv on Python 3.14.
 - **Steps:** `pip install mcp strands-agents uvicorn boto3` (first with `boto3` listed separately, then without).
 - **Expected:** a normal install.

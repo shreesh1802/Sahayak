@@ -20,6 +20,7 @@ Built for the **Amazon Developer Hackathon 2026, Alexa+ track.**
 | *(rate type not stated)* | The server asks a follow-up question, "flat or reducing balance?", using MCP elicitation, then continues. |
 | "Can I afford 4,500 a month?" | Checks against your saved income, expenses and existing loans, and explains the verdict. |
 | "My income is 25k and expenses 14k" | Remembers your budget for next time. |
+| "Add a loan called shop credit of 12000 at 18 percent for 12 months reducing" | Saves it so repayments can be tracked. |
 | "I paid 2,000 on loan 1" / "Show my loans" | Tracks repayments and what is left. |
 | "Teach me something" | Gives the next short money lesson with a quiz question. |
 
@@ -61,7 +62,7 @@ Open http://127.0.0.1:8080 and use the quick-start buttons, type, or tap the mic
 ## Tests
 
 ```bash
-python -m pytest                 # 19 unit tests: loan maths and the intent router
+python -m pytest                 # 22 unit tests: loan maths and the intent router
 python -m eval.smoke             # 14 end-to-end checks against a running server
 ```
 

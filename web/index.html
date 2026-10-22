@@ -173,8 +173,10 @@ if (SR) {
 [['Explain a loan', 'I was offered a loan of 50000 at 24 percent for 12 months with a fee of 2000'],
  ['Can I afford it?', 'can I afford 4500 a month'],
  ['Tell my budget', 'my income is 25000 and my expenses are 14000'],
- ['Teach me', 'teach me something'],
- ['My loans', 'show my loans']].forEach(([label, q]) => {
+ ['Save a loan', 'add a loan called shop credit of 12000 at 18 percent for 12 months reducing'],
+ ['Log a payment', 'I paid 2000 on loan 1'],
+ ['My loans', 'show my loans'],
+ ['Teach me', 'teach me something']].forEach(([label, q]) => {
   const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
   b.onclick = () => send(q); $('#chips').appendChild(b);
 });
