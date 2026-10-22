@@ -14,6 +14,66 @@ _NUM = r"(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|lakhs?|lac|crore|m|million)?"
 MIN_MONTHLY = 1_000  # a monthly income or expense below this is almost certainly a cut-off number like "25"
 
 
+_UNITS = {w: i for i, w in enumerate(
+    "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen "
+    "seventeen eighteen nineteen".split())}
+_TENS = {w: 10 * (i + 2) for i, w in enumerate("twenty thirty forty fifty sixty seventy eighty ninety".split())}
+_SCALES = {"hundred": 100, "thousand": 1_000, "lakh": 100_000, "lakhs": 100_000, "lac": 100_000, "crore": 10_000_000}
+
+
+def words_to_digits(text: str) -> str:
+    """'eight thousand' -> '8000', 'twenty five thousand' -> '25000', 'one lakh fifty thousand' -> '150000'.
+
+    Browsers sometimes transcribe spoken numbers as words. A lone 'one' is left alone ('one of my loans').
+    """
+    tokens = re.sub(r"(?<=[a-z])-(?=[a-z])", " ", text).split()  # 'twenty-five' -> 'twenty five'; keeps '50,000'
+    core = lambda tok: tok.strip(".,;:!?")  # noqa: E731
+    out: list[str] = []
+    i = 0
+    while i < len(tokens):
+        w = core(tokens[i])
+        if w not in _UNITS and w not in _TENS and w not in _SCALES:
+            out.append(tokens[i]); i += 1; continue
+        if w in _SCALES and out and re.fullmatch(r"[\d.,]+", out[-1]):  # '2 lakh', '25 thousand': the amount parser handles it
+            out.append(tokens[i]); i += 1; continue
+        j, total, current, seen_scale = i, 0, 0, False
+        while j < len(tokens):
+            w = core(tokens[j])
+            if w in _UNITS:
+                current += _UNITS[w]
+            elif w in _TENS:
+                current += _TENS[w]
+            elif w in _SCALES:
+                if _SCALES[w] == 100:
+                    current = (current or 1) * 100
+                else:
+                    total += (current or 1) * _SCALES[w]; current = 0; seen_scale = True
+            elif w == "and" and j + 1 < len(tokens) and core(tokens[j + 1]) in {**_UNITS, **_TENS}:
+                pass
+            else:
+                break
+            j += 1
+        value = total + current
+        if j - i == 1 and core(tokens[i]) == "one" and not seen_scale and (not out or out[-1] not in ("loan", "number")):
+            out.append(tokens[i])
+        else:
+            out.append(str(value))
+        i = j
+    return " ".join(out)
+
+
+def suggest_full(n: float) -> float:
+    """A cut-off number is usually missing zeros: 8 -> 8,000 ('eight thousand' heard as 'eight'), 800 -> 8,000."""
+    return n * 1000 if n < 100 else n * 10
+
+
+def low_note(low: dict) -> str:
+    field_, n = next(iter(low.items()))
+    what = "income" if field_ == "monthly_income" else "monthly expenses"
+    return (f"I heard {n:,.0f} for your {what}, which sounds low. Did you mean {suggest_full(n):,.0f}? "
+            f"Say yes, or say the full amount.")
+
+
 def _to_amount(num: str, mult: str | None) -> float:
     v = float(num.replace(",", ""))
     return v * _MULT.get((mult or "").lower(), 1)
@@ -48,10 +108,11 @@ class Route:
     args: dict = field(default_factory=dict)
     note: str = ""  # shown when no tool matches
     partial: dict = field(default_factory=dict)  # half-given budget the conversation should remember
+    suspect: dict = field(default_factory=dict)  # amounts that sound too low; the conversation asks to confirm
 
 
 def route(utterance: str) -> Route:
-    t = utterance.strip().lower().replace("₹", "").replace("rs.", "").replace("rs ", "")
+    t = words_to_digits(utterance.strip().lower().replace("₹", "").replace("rs.", "").replace("rs ", ""))
 
     if re.search(r"\b(lesson|teach me|learn)\b", t):
         return Route("next_lesson")
@@ -90,9 +151,9 @@ def route(utterance: str) -> Route:
     inc = _find_amount(r"(?:income|earn|salary)[^\d]{0,20}" + _NUM, t)
     exp = _find_amount(r"(?:expenses?|spend)[^\d]{0,20}" + _NUM, t)
     given = {k: v for k, v in (("monthly_income", inc), ("monthly_expenses", exp)) if v}
-    if given and any(v < MIN_MONTHLY for v in given.values()):
-        return Route(None, note="That sounds low for a monthly amount. Please say the full number, "
-                                "for example: my income is 25000 and my expenses are 14000.")
+    low = {k: v for k, v in given.items() if v < MIN_MONTHLY}
+    if low:
+        return Route(None, suspect=given, note=low_note(low))
     if inc and exp:
         return Route("save_my_budget", {"monthly_income": inc, "monthly_expenses": exp})
     if given:

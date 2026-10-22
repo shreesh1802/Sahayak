@@ -22,7 +22,7 @@ from starlette.applications import Starlette
 from starlette.responses import FileResponse, JSONResponse
 from starlette.routing import Route as HttpRoute
 
-from agents.router import _NUM, MIN_MONTHLY, Route, _to_amount, route
+from agents.router import _NUM, MIN_MONTHLY, Route, _to_amount, low_note, route, suggest_full
 
 MCP_URL = os.environ.get("SAHAYAK_MCP_URL", "http://127.0.0.1:8000/mcp")
 HERE = Path(__file__).parent
@@ -96,16 +96,37 @@ def remember_budget(state: dict, r: Route, text: str) -> Route:
     A bare number after a question for the missing half fills it in; anything else drops the pending question.
     """
     pending = dict(state.get("budget", {}))
+    suspect = state.get("suspect")
+
+    # An amount that sounds low was queried ("I heard 8... did you mean 8,000?"): read the reply to that question.
+    if suspect and r.tool is None and not r.partial and not r.suspect:
+        low = text.lower()
+        if re.search(r"\b(yes|yeah|yep|yup|correct|right|ok|okay|sure)\b", low):
+            state.pop("suspect")
+            r = Route(None, partial={k: (suggest_full(v) if k in suspect["low"] else v)
+                                     for k, v in suspect["values"].items()})
+        elif re.search(r"\b(no|nope|nah)\b", low):
+            state.pop("suspect")
+            return Route(None, note="Okay. Please say or type the full amount, for example 8000.")
+
+    if r.suspect:  # too low to be a real monthly amount: ask rather than guess or reject
+        state["suspect"] = {"values": r.suspect, "low": [k for k, v in r.suspect.items() if v < MIN_MONTHLY]}
+        return r
     if r.partial:
+        state.pop("suspect", None)
         pending.update(r.partial)
     elif r.tool is None and pending and (m := re.search(_NUM, text, re.I)):
         value = _to_amount(m.group(1), m.group(2))
+        field_ = "monthly_expenses" if "monthly_income" in pending else "monthly_income"
         if value < MIN_MONTHLY:
-            return Route(None, note="That sounds low for a monthly amount. Please say the full number.")
-        pending["monthly_expenses" if "monthly_income" in pending else "monthly_income"] = value
+            low = {field_: value}
+            state["suspect"] = {"values": low, "low": [field_]}
+            return Route(None, suspect=low, note=low_note(low))
+        pending[field_] = value
     else:
         if r.tool is not None:
             state.pop("budget", None)  # the user moved on
+            state.pop("suspect", None)
         return r
     if len(pending) == 2:
         state.pop("budget", None)

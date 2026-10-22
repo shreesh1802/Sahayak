@@ -67,7 +67,7 @@ Open http://127.0.0.1:8080 and use the quick-start buttons, type, or tap the mic
 ## Tests
 
 ```bash
-python -m pytest                 # 41 unit tests: loan maths, intent router, multi-agent pipeline and verifier
+python -m pytest                 # 47 unit tests: loan maths, intent router, multi-agent pipeline and verifier
 python -m eval.smoke             # 21 end-to-end checks against a running server
 ```
 

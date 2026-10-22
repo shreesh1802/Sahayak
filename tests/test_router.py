@@ -33,10 +33,27 @@ def test_expenses_alone_is_remembered():
     assert r.tool is None and r.partial == {"monthly_expenses": 14_000} and "What is your monthly income?" in r.note
 
 
-def test_cut_off_number_is_not_saved():
+def test_cut_off_number_is_queried_not_saved():
     # what the browser produced when speech recognition stopped mid-number
     r = route("My income is 25")
-    assert r.tool is None and not r.partial and "full number" in r.note
+    assert r.tool is None and not r.partial
+    assert r.suspect == {"monthly_income": 25.0} and "Did you mean 25,000?" in r.note
+
+
+def test_number_words_are_understood():
+    assert route("my income is twenty five thousand and my expenses are fourteen thousand").args == \
+        {"monthly_income": 25_000, "monthly_expenses": 14_000}
+    assert route("I paid two thousand on loan one").args == {"amount": 2_000, "loan_number": 1}
+    assert route("borrow one lakh at 18 percent for two years reducing").args["principal"] == 100_000
+    assert route("borrow one lakh at 18 percent for two years reducing").args["term_months"] == 24
+
+
+def test_words_to_digits_leaves_ordinary_words_alone():
+    from agents.router import words_to_digits
+    assert words_to_digits("one of my loans") == "one of my loans"
+    assert words_to_digits("one lakh fifty thousand") == "150000"
+    assert words_to_digits("a hundred and five") == "a 105"
+    assert words_to_digits("no thanks") == "no thanks"
 
 
 def test_repayment_by_number():

@@ -42,7 +42,7 @@ figure, so a spoken number can always be traced to the calculator. State lives i
 experience (an Echo Showâ€“style screen with voice input and cards) acts as the MCP client, so it exercises the real
 server over the real protocol.
 
-**Quality checks.** 41 unit tests cover the loan maths, the intent router, and the multi-agent pipeline (including a
+**Quality checks.** 47 unit tests cover the loan maths, the intent router, and the multi-agent pipeline (including a
 test that a composer inventing a number is rejected by the verifier). 21 end-to-end checks run a real MCP
 client against the live server, covering the elicitation round trip, input validation, a guard that stops one user
 logging repayments on another user's loan, and the Alexa+ latency budget (under 500 ms; measured about 8 ms per call).
