@@ -93,12 +93,13 @@ python -m web.app             # simulator on  http://127.0.0.1:8080
 ## Tests
 
 ```bash
-python -m pytest                 # 84 unit tests: loan maths, router, agents, verifier, MCP App contract, hardening, launcher
-python -m eval.smoke http://127.0.0.1:8000/mcp   # 25 end-to-end checks against a running server
+python -m pytest                 # 118 unit tests: loan maths, router, agents, verifier, MCP App contract, theme, hardening, launcher
+python -m eval.smoke http://127.0.0.1:8000/mcp   # 26 end-to-end checks against a running server
 ```
 
 The end-to-end check also verifies the Alexa+ latency budget (under 500 ms; typically 9 to 60 ms per tool call here),
-the declared screens, input validation, and the multi-agent review. Use `127.0.0.1`, not `localhost`, on Windows:
+the declared screens, that every result carries `structuredContent` (what the MCP App card reads), input validation,
+and the multi-agent review. A theme test keeps every text and background colour pair above WCAG contrast. Use `127.0.0.1`, not `localhost`, on Windows:
 `localhost` added about 280 ms per connection in testing.
 
 ## Public URL

@@ -12,51 +12,65 @@
   ui/notifications/tool-input and ui/notifications/tool-result, which this page renders.
 -->
 <style>
+  /* Same warm palette as the simulator page (checked for contrast in tests/test_theme.py).
+     Hosts may ask for a dark theme through hostContext.theme, so a dark variant is kept. */
   :root {
-    --bg: #0b1324; --panel2: #1a2640; --line: #26324f; --text: #e9effc; --muted: #93a1c4;
-    --accent: #2dd4bf; --good: #4ade80; --warn: #fbbf24; --bad: #f87171; --blue: #60a5fa;
-    --note-bg: #3a2b0a; --note-line: #6b4f10; --note-text: #fde68a;
-    --info-bg: #0f2a3a; --info-line: #1d5473; --info-text: #bae6fd;
+    --bg: #F6F1E7; --panel: #FFFDF8; --panel2: #F3EDDF; --line: #E1D6C0;
+    --text: #2E3A2F; --muted: #675F4F;
+    --brand: #4B7B4E; --brand-strong: #3A6340; --brand-soft: #E1EDD8;
+    --good: #33753C; --good-soft: #E2F0DA;
+    --warn: #8A5A0B; --warn-soft: #FBEFD2; --warn-line: #E8CD8E;
+    --bad: #A5442F; --bad-soft: #F8E3DC;
+    --info: #2F5F58; --info-soft: #DDEFE8; --info-line: #A9D3C6;
+    --borrowed: #2F6B4F; --interest: #D9704F; --fees: #E8C25A;
   }
-  :root[data-theme="light"] {
-    --bg: #ffffff; --panel2: #eef2fb; --line: #d5dcee; --text: #14213d; --muted: #5b6b8c;
-    --accent: #0d9488; --good: #15803d; --warn: #b45309; --bad: #dc2626; --blue: #2563eb;
-    --note-bg: #fef3c7; --note-line: #f59e0b; --note-text: #78350f;
-    --info-bg: #e0f2fe; --info-line: #38bdf8; --info-text: #0c4a6e;
+  :root[data-theme="dark"] {
+    --bg: #0b1324; --panel: #0b1324; --panel2: #1a2640; --line: #26324f;
+    --text: #e9effc; --muted: #9fb0d3;
+    --brand: #2dd4bf; --brand-strong: #5eead4; --brand-soft: #12353a;
+    --good: #4ade80; --good-soft: #12301f;
+    --warn: #fbbf24; --warn-soft: #3a2b0a; --warn-line: #6b4f10;
+    --bad: #f87171; --bad-soft: #3a1717;
+    --info: #bae6fd; --info-soft: #0f2a3a; --info-line: #1d5473;
+    --borrowed: #60a5fa; --interest: #f87171; --fees: #fbbf24;
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; background: var(--bg); color: var(--text);
-    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  #root { padding: 16px 18px 14px; animation: pop .25s ease-out; }
+  html, body { margin: 0; background: var(--panel); color: var(--text);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  #root { padding: 18px 20px 16px; animation: pop .25s ease-out; }
   @keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
   .empty { color: var(--muted); padding: 40px 8px; text-align: center; }
-  .empty b { display: block; color: var(--text); font-size: 18px; margin-bottom: 6px; }
-  .big { font-size: 38px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-  .big small { font-size: 15px; font-weight: 500; color: var(--muted); letter-spacing: 0; }
-  .title { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
-  .row { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  .empty b { display: block; color: var(--brand-strong); font-size: 20px; margin-bottom: 6px;
+             font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif; }
+  .big { font-size: 40px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--brand-strong);
+         font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif; }
+  .big small { font-size: 15px; font-weight: 500; color: var(--muted); letter-spacing: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .title { font-size: 22px; font-weight: 700; margin-bottom: 6px; color: var(--brand-strong);
+           font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
   .row:last-child { border-bottom: 0; }
   .row span:first-child { color: var(--muted); }
-  .bar2 { display: flex; height: 16px; border-radius: 8px; overflow: hidden; margin: 12px 0 6px; background: var(--panel2); }
+  .bar2 { display: flex; gap: 2px; height: 16px; border-radius: 9px; overflow: hidden; margin: 12px 0 6px; background: var(--panel2);
+          box-shadow: 0 0 0 1px #A68F5F55; }
   .bar2 i { display: block; height: 100%; }
   .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
   .legend b { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
-  .verdict { font-size: 30px; font-weight: 800; }
+  .verdict { font-size: 30px; font-weight: 700; font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif; }
   .comfortable { color: var(--good); } .tight { color: var(--warn); } .unaffordable { color: var(--bad); }
-  .note { background: var(--note-bg); border: 1px solid var(--note-line); color: var(--note-text); border-radius: 10px; padding: 8px 12px; margin-top: 10px; font-size: 14px; }
-  .note.info { background: var(--info-bg); border-color: var(--info-line); color: var(--info-text); }
-  .prog { height: 8px; background: var(--panel2); border-radius: 4px; overflow: hidden; margin: 4px 0 10px; }
-  .prog i { display: block; height: 100%; background: var(--accent); }
+  .note { background: var(--warn-soft); border: 1px solid var(--warn-line); color: var(--warn); border-radius: 12px; padding: 9px 13px; margin-top: 10px; font-size: 14px; }
+  .note.info { background: var(--info-soft); border-color: var(--info-line); color: var(--info); }
+  .prog { height: 8px; background: var(--panel2); border-radius: 4px; overflow: hidden; margin: 4px 0 10px; box-shadow: 0 0 0 1px var(--line); }
+  .prog i { display: block; height: 100%; background: var(--brand); border-radius: 4px; }
   .ok-card { text-align: center; padding: 26px 8px; }
-  .ok-card .tick { width: 54px; height: 54px; border-radius: 50%; background: #14532d; color: var(--good); display: grid; place-items: center; margin: 0 auto 10px; font-size: 28px; }
+  .ok-card .tick { width: 56px; height: 56px; border-radius: 50%; background: var(--good-soft); color: var(--good); display: grid; place-items: center; margin: 0 auto 10px; font-size: 28px; }
   .tag { color: var(--muted); font-size: 14px; }
-  .sec { margin: 16px 0 6px; font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
-  .qs { margin: 4px 0 8px; padding-left: 20px; font-size: 14px; } .qs li { margin: 4px 0; }
+  .sec { margin: 18px 0 6px; font-size: 12px; color: var(--brand-strong); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
+  .qs { margin: 4px 0 8px; padding-left: 20px; font-size: 14px; } .qs li { margin: 5px 0; }
   details { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; }
-  summary { cursor: pointer; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  summary { cursor: pointer; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
   .agents { margin: 8px 0 0; padding: 0; list-style: none; font: 12px/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--muted); }
   .agents .ok { color: var(--good); } .agents .no { color: var(--bad); }
-  summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  summary:focus-visible { outline: 3px solid #8FBF86; outline-offset: 2px; }
   @media (prefers-reduced-motion: reduce) { #root { animation: none; } }
 </style>
 </head>
@@ -81,11 +95,11 @@
     var rateColor = x.effective_annual_rate > x.stated_annual_rate + 0.5 ? 'var(--bad)' : 'var(--good)';
     return '<div class="big">' + fmt(x.emi) + ' <small>per month · ' + esc(x.term_months) + ' months</small></div>'
       + '<div class="bar2" role="img" aria-label="Where your repayment goes">'
-      + '<i style="width:' + (x.principal / total * 100) + '%;background:var(--blue)"></i>'
-      + '<i style="width:' + (x.total_interest / total * 100) + '%;background:var(--bad)"></i>'
-      + '<i style="width:' + (x.upfront_fees / total * 100) + '%;background:var(--warn)"></i></div>'
-      + '<div class="legend"><span><b style="background:var(--blue)"></b>Borrowed</span>'
-      + '<span><b style="background:var(--bad)"></b>Interest</span><span><b style="background:var(--warn)"></b>Fees</span></div>'
+      + '<i style="width:' + (x.principal / total * 100) + '%;background:var(--borrowed)"></i>'
+      + '<i style="width:' + (x.total_interest / total * 100) + '%;background:var(--interest)"></i>'
+      + '<i style="width:' + (x.upfront_fees / total * 100) + '%;background:var(--fees)"></i></div>'
+      + '<div class="legend"><span><b style="background:var(--borrowed)"></b>Borrowed</span>'
+      + '<span><b style="background:var(--interest)"></b>Interest</span><span><b style="background:var(--fees)"></b>Fees</span></div>'
       + row('You receive', fmt(x.net_disbursed))
       + row('You repay in total', fmt(x.total_repayment))
       + row('Extra cost (interest + fees)', fmt(x.total_cost))
@@ -157,8 +171,21 @@
     return '<div class="empty">' + esc(d.speech || 'Done.') + '</div>';
   }
 
+  // The data is in structuredContent. Some hosts pass only the text version of a result, which is the same JSON.
+  function dataOf(result) {
+    if (!result) return null;
+    if (result.structuredContent && typeof result.structuredContent === 'object') return result.structuredContent;
+    var items = result.content || [];
+    for (var i = 0; i < items.length; i++) {
+      if (items[i] && items[i].type === 'text' && typeof items[i].text === 'string') {
+        try { var parsed = JSON.parse(items[i].text); if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed; } catch (e) { /* plain text */ }
+      }
+    }
+    return null;
+  }
+
   function render(result) {
-    var d = result && result.structuredContent;
+    var d = dataOf(result);
     if (result && result.isError) {
       var t = (result.content || []).map(function (c) { return c.text || ''; }).join(' ');
       root.innerHTML = '<div class="empty"><b>Something went wrong</b>' + esc(t) + '</div>';
