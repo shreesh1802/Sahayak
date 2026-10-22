@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sahayak · Alexa+ simulator</title>
+<style>
+  :root {
+    --bg: #0b1220; --panel: #131c2e; --panel2: #1a2540; --text: #e8eefc; --muted: #93a1c4;
+    --accent: #2dd4bf; --warn: #fbbf24; --bad: #f87171; --good: #4ade80; --line: #26324f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .app { max-width: 980px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; grid-template-columns: 1fr; }
+  @media (min-width: 860px) { .app { grid-template-columns: 1fr 1fr; align-items: start; } }
+  header { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 22px; }
+  .tag { color: var(--muted); font-size: 14px; }
+  .pill { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--panel2); color: var(--accent); border: 1px solid var(--line); }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
+  #log { height: 52vh; min-height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 4px; }
+  .msg { max-width: 88%; padding: 10px 14px; border-radius: 14px; white-space: pre-wrap; }
+  .me { align-self: flex-end; background: #1f3a5f; }
+  .bot { align-self: flex-start; background: var(--panel2); border: 1px solid var(--line); }
+  .bot.ask { border-color: var(--accent); }
+  form { display: flex; gap: 8px; margin-top: 12px; }
+  input[type=text] { flex: 1; background: #0e1626; color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-size: 16px; }
+  button { background: var(--accent); color: #04211d; border: 0; border-radius: 12px; padding: 0 16px; font-weight: 600; cursor: pointer; font-size: 15px; }
+  button.ghost { background: var(--panel2); color: var(--text); border: 1px solid var(--line); }
+  button.listening { background: var(--bad); color: white; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .chips button { background: var(--panel2); color: var(--text); border: 1px solid var(--line); padding: 6px 12px; font-weight: 500; font-size: 13px; }
+  .screen h2 { margin: 0 0 4px; font-size: 14px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+  .empty { color: var(--muted); padding: 40px 8px; text-align: center; }
+  .big { font-size: 34px; font-weight: 700; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: 0; }
+  .row span:first-child { color: var(--muted); }
+  .bar { display: flex; height: 18px; border-radius: 9px; overflow: hidden; margin: 10px 0 4px; background: var(--panel2); }
+  .bar i { display: block; height: 100%; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; }
+  .verdict { font-size: 26px; font-weight: 700; }
+  .comfortable { color: var(--good); } .tight { color: var(--warn); } .unaffordable { color: var(--bad); }
+  .warnbox { background: #3a2b0a; border: 1px solid #6b4f10; color: #fde68a; border-radius: 10px; padding: 8px 10px; margin-top: 10px; font-size: 14px; }
+  .prog { height: 8px; background: var(--panel2); border-radius: 4px; overflow: hidden; margin-top: 4px; }
+  .prog i { display: block; height: 100%; background: var(--accent); }
+  .foot { grid-column: 1 / -1; color: var(--muted); font-size: 13px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Sahayak</h1>
+    <span class="tag">a money coach for first-time borrowers</span>
+    <span class="pill">Alexa+ simulator · MCP over Streamable HTTP</span>
+  </header>
+
+  <section class="panel" aria-label="Conversation">
+    <div id="log" role="log" aria-live="polite"></div>
+    <div class="chips" id="chips"></div>
+    <form id="form">
+      <input id="text" type="text" autocomplete="off" placeholder="Say or type something…" aria-label="Message">
+      <button type="button" id="mic" class="ghost" title="Speak">🎤</button>
+      <button type="submit">Send</button>
+    </form>
+  </section>
+
+  <section class="panel screen" aria-label="Screen">
+    <h2>Echo Show screen</h2>
+    <div id="card"><div class="empty">Results appear here as cards.</div></div>
+  </section>
+
+  <p class="foot">Sahayak gives financial education, not regulated financial advice. Figures come from a calculator, never from a language model.</p>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const log = $('#log'), card = $('#card');
+let session = null, speak = true;
+const fmt = n => '₹' + Math.round(n).toLocaleString('en-IN');
+const pct = n => (Math.round(n * 10) / 10) + '%';
+
+function say(text, who, extra = '') {
+  const d = document.createElement('div');
+  d.className = 'msg ' + who + ' ' + extra;
+  d.textContent = text;
+  log.appendChild(d);
+  log.scrollTop = log.scrollHeight;
+  if (who === 'bot' && speak && 'speechSynthesis' in window) {
+    speechSynthesis.cancel();
+    speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+  }
+}
+
+function row(k, v) { return `<div class="row"><span>${k}</span><span>${v}</span></div>`; }
+
+function render(c) {
+  if (!c) return;
+  if (c.tool === 'explain_loan') {
+    const x = c.cost, p = x.principal, fees = x.upfront_fees, i = x.total_interest;
+    const total = p + i + fees || 1;
+    card.innerHTML = `
+      <div class="big">${fmt(x.emi)} <small style="font-size:16px;color:var(--muted)">per month</small></div>
+      <div class="bar" role="img" aria-label="Where your repayment goes">
+        <i style="width:${p / total * 100}%;background:#60a5fa"></i>
+        <i style="width:${i / total * 100}%;background:#f87171"></i>
+        <i style="width:${fees / total * 100}%;background:#fbbf24"></i></div>
+      <div class="legend"><span><b class="dot" style="background:#60a5fa"></b>Borrowed</span>
+        <span><b class="dot" style="background:#f87171"></b>Interest</span>
+        <span><b class="dot" style="background:#fbbf24"></b>Fees</span></div>
+      ${row('You receive', fmt(x.net_disbursed))}
+      ${row('You repay in total', fmt(x.total_repayment))}
+      ${row('Extra cost (interest + fees)', fmt(x.total_cost))}
+      ${row('Quoted rate (' + x.rate_type + ')', pct(x.stated_annual_rate))}
+      ${row('True yearly cost', '<b>' + pct(x.effective_annual_rate) + '</b>')}
+      ${c.comparison.extra_cost_of_flat > 0 ? `<div class="warnbox">Flat vs reducing at this rate: flat costs ${fmt(c.comparison.extra_cost_of_flat)} more.</div>` : ''}
+      ${c.assumed_rate_type ? '<div class="warnbox">Rate type assumed flat: please confirm with your lender.</div>' : ''}`;
+  } else if (c.tool === 'check_affordability' && c.affordability) {
+    const a = c.affordability;
+    card.innerHTML = `
+      <div class="verdict ${a.verdict}">${a.verdict[0].toUpperCase() + a.verdict.slice(1)}</div>
+      ${row('Monthly income', fmt(a.monthly_income))}
+      ${row('Regular expenses', fmt(a.monthly_expenses))}
+      ${row('Existing loan payments', fmt(a.existing_emis))}
+      ${row('New payment', fmt(a.new_emi))}
+      ${row('Left after everything', `<b class="${a.surplus_after < 0 ? 'unaffordable' : ''}">${fmt(a.surplus_after)}</b>`)}
+      ${row('Loan payments / income', pct(a.emi_to_income_ratio))}
+      ${a.reasons.map(r => `<div class="warnbox">${r}</div>`).join('')}`;
+  } else if (c.tool === 'my_loans') {
+    card.innerHTML = c.loans.length ? c.loans.map(l => `
+      <div style="margin-bottom:12px"><b>#${l.id} ${l.lender_label}</b>
+        ${row('Payment', fmt(l.emi) + ' / month')}
+        ${row('Paid so far', fmt(l.paid) + ' of ' + fmt(l.total_due))}
+        <div class="prog"><i style="width:${Math.min(100, l.paid / l.total_due * 100)}%"></i></div></div>`).join('')
+      + row('Total monthly payments', '<b>' + fmt(c.monthly_total) + '</b>')
+      : '<div class="empty">No loans saved yet.</div>';
+  } else if (c.tool === 'next_lesson' && c.lesson) {
+    card.innerHTML = `<div class="big" style="font-size:22px">${c.lesson.title}</div>
+      <p>${c.lesson.body}</p><div class="warnbox">Quick question: ${c.lesson.quiz}</div>`;
+  } else {
+    card.innerHTML = `<div class="empty">${c.speech || 'Done.'}</div>`;
+  }
+}
+
+async function send(text) {
+  if (!text.trim()) return;
+  say(text, 'me');
+  $('#text').value = '';
+  try {
+    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, session }) });
+    const d = await r.json();
+    session = d.awaiting_reply ? d.session : null;
+    say(d.speech, 'bot', d.awaiting_reply ? 'ask' : '');
+    render(d.card);
+  } catch (e) {
+    session = null;
+    say('I could not reach the Sahayak server. Is it running?', 'bot');
+  }
+}
+
+$('#form').addEventListener('submit', e => { e.preventDefault(); send($('#text').value); });
+
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (SR) {
+  const rec = new SR(); rec.lang = 'en-IN';
+  rec.onresult = e => { $('#mic').classList.remove('listening'); send(e.results[0][0].transcript); };
+  rec.onend = rec.onerror = () => $('#mic').classList.remove('listening');
+  $('#mic').onclick = () => { speechSynthesis.cancel(); $('#mic').classList.add('listening'); rec.start(); };
+} else { $('#mic').style.display = 'none'; }
+
+[['Explain a loan', 'I was offered a loan of 50000 at 24 percent for 12 months with a fee of 2000'],
+ ['Can I afford it?', 'can I afford 4500 a month'],
+ ['Tell my budget', 'my income is 25000 and my expenses are 14000'],
+ ['Teach me', 'teach me something'],
+ ['My loans', 'show my loans']].forEach(([label, q]) => {
+  const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
+  b.onclick = () => send(q); $('#chips').appendChild(b);
+});
+
+say("Hi, I'm Sahayak. Tell me about a loan you are considering, and I will explain what it really costs.", 'bot');
+</script>
+</body>
+</html>
