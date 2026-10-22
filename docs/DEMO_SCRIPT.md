@@ -22,7 +22,7 @@ Judges are not required to watch past 3:00, so the best material comes first. Re
 | 1:25–1:35 | Type `can I afford 9000 a month` | "Change the payment and it says tight, with the reason." |
 | 1:35–2:05 | Click **Save a loan**, **Log a payment**, **My loans** | "It tracks my loans and repayments across conversations, so the coaching builds up over time." |
 | 2:05–2:15 | Click **Teach me** | "And it teaches one short lesson at a time, with a quiz question." |
-| 2:15–2:40 | Switch to the terminal: run `python -m eval.smoke` (or show its saved output) and point at the PASS lines, the spec version line and the latency line | "Under the hood this is a real MCP server over Streamable HTTP, spec 2025-11-25. It exposes seven tools and answers in about eight milliseconds, well inside Alexa+'s five hundred millisecond budget. Every number comes from a calculator, never from a language model." |
+| 2:15–2:40 | Switch to the terminal: run `python -m eval.smoke` (or show its saved output) and point at the PASS lines, the spec version line and the latency line | "Under the hood this is a real MCP server over Streamable HTTP, spec 2025-11-25. It exposes eight tools and answers in well under a hundred milliseconds, far inside Alexa+'s five hundred millisecond budget. Every number comes from a calculator, never from a language model." |
 | 2:40–2:55 | Back to the browser, or show the README limitations section | "I tested with a simulated Alexa+ screen, not a real device. The code is open source on GitHub. Sahayak: financial education, in your own words." |
 
 ## Rules to follow in the video
