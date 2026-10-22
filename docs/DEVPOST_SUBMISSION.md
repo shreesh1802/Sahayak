@@ -30,13 +30,20 @@ It remembers your income and spending, checks whether a payment is realistic, tr
 conversations, and teaches one short money lesson at a time.
 
 **How it works.** The server (Python, official MCP SDK) speaks Streamable HTTP and negotiates MCP spec 2025-11-25.
-It exposes seven tools and one resource. All numbers come from a deterministic calculator that computes flat versus
+It exposes eight tools and one resource. One of them, `review_loan_offer`, answers "should I take this loan?" by
+running a small multi-agent pipeline behind a single tool call: a supervisor plans and re-plans which specialists to
+run (a loan analyst, an affordability agent that is skipped when the budget is unknown, and a coach that picks
+questions to ask the lender and a lesson from the findings), and a verifier then checks that every number in the
+spoken answer traces to the calculator, rejecting and replacing any draft that does not. The agents are rule-based
+code, not language models: what is real is the orchestration and the verifier, which sit behind plain interfaces so
+a model could be dropped in later. All numbers come from a deterministic calculator that computes flat versus
 reducing interest, upfront fees and the true yearly rate (an IRR solved numerically). No language model touches a
 figure, so a spoken number can always be traced to the calculator. State lives in SQLite. A simulated Alexa+
 experience (an Echo Showâ€“style screen with voice input and cards) acts as the MCP client, so it exercises the real
 server over the real protocol.
 
-**Quality checks.** 24 unit tests cover the loan maths and the intent router. 16 end-to-end checks run a real MCP
+**Quality checks.** 33 unit tests cover the loan maths, the intent router, and the multi-agent pipeline (including a
+test that a composer inventing a number is rejected by the verifier). 21 end-to-end checks run a real MCP
 client against the live server, covering the elicitation round trip, input validation, a guard that stops one user
 logging repayments on another user's loan, and the Alexa+ latency budget (under 500 ms; measured about 8 ms per call).
 

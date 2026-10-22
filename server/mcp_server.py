@@ -13,6 +13,7 @@ import os
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import BaseModel, Field
 
+from agents.pipeline import State, review
 from core import lessons as lesson_bank
 from core import store
 from core.loan import (RATE_TYPES, check_affordability as _affordability,
@@ -44,31 +45,59 @@ class BudgetChoice(BaseModel):
     monthly_expenses: float = Field(description="Regular spending per month, excluding loan payments")
 
 
+async def _ask_rate_type(ctx: Context, rate_type: str) -> tuple[str, bool]:
+    """Return (rate_type, assumed). Asks the user if unknown; falls back to the pessimistic 'flat' and says so."""
+    if rate_type in RATE_TYPES:
+        return rate_type, False
+    res = await ctx.elicit(
+        "Is the interest rate flat, or charged on the reducing balance? If you are not sure, "
+        "ask your lender; flat is much more expensive.",
+        schema=RateTypeChoice,
+    )
+    if res.action != "accept" or res.data.rate_type not in RATE_TYPES:
+        return "flat", True
+    return res.data.rate_type, False
+
+
 @mcp.tool()
 async def explain_loan(ctx: Context, principal: float, annual_rate: float, term_months: int,
                        fees: float = 0.0, rate_type: str = "", user_id: str = DEFAULT_USER) -> dict:
     """Explain what a loan really costs, in plain words: monthly payment, total repayment,
     fees, and the true yearly rate. Use when someone is offered or considering a loan.
     rate_type is 'flat' or 'reducing'; if unknown, the user is asked."""
-    if rate_type not in RATE_TYPES:
-        res = await ctx.elicit(
-            "Is the interest rate flat, or charged on the reducing balance? If you are not sure, "
-            "ask your lender; flat is much more expensive.",
-            schema=RateTypeChoice,
-        )
-        if res.action != "accept" or res.data.rate_type not in RATE_TYPES:
-            rate_type = "flat"  # pessimistic default, stated in the answer
-            assumed = True
-        else:
-            rate_type, assumed = res.data.rate_type, False
-    else:
-        assumed = False
+    rate_type, assumed = await _ask_rate_type(ctx, rate_type)
     cost = loan_cost(principal, annual_rate, term_months, fees, rate_type).to_dict()
     comparison = compare_flat_vs_reducing(principal, annual_rate, term_months, fees)
     speech = narrate_loan(cost, comparison)
     if assumed:
         speech += " I assumed a flat rate because I could not confirm it, so check with your lender."
     return {"speech": speech, "cost": cost, "comparison": comparison, "assumed_rate_type": assumed}
+
+
+@mcp.tool()
+async def review_loan_offer(ctx: Context, principal: float, annual_rate: float, term_months: int,
+                            fees: float = 0.0, rate_type: str = "", user_id: str = DEFAULT_USER) -> dict:
+    """Review a whole loan offer in one go: the true cost, whether the payment fits the user's budget,
+    questions to ask the lender, and the most relevant lesson. Use when someone asks whether they should
+    take a loan or wants an offer reviewed. Several specialist agents run behind this one tool, and a
+    verifier checks every spoken number against the calculator. Asks for the rate type and budget if unknown."""
+    rate_type, assumed = await _ask_rate_type(ctx, rate_type)
+    profile = store.get_profile(user_id)
+    if profile is None:
+        res = await ctx.elicit("To check whether this fits your budget I need your monthly income and "
+                               "regular expenses. You can decline and I will skip that part.", schema=BudgetChoice)
+        if res.action == "accept":
+            store.save_profile(user_id, res.data.monthly_income, res.data.monthly_expenses)
+            profile = store.get_profile(user_id)
+    existing = sum(l["emi"] for l in store.list_loans(user_id) if l["paid"] < l["emi"] * l["term_months"])
+    state = State(principal, annual_rate, term_months, fees, rate_type,
+                  {"monthly_income": profile["monthly_income"], "monthly_expenses": profile["monthly_expenses"]}
+                  if profile else None, existing)
+    result = review(state)
+    if assumed:
+        result["speech"] += " I assumed a flat rate because I could not confirm it, so check with your lender."
+    result["assumed_rate_type"] = assumed
+    return result
 
 
 @mcp.tool()

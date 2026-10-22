@@ -34,7 +34,12 @@ Built for the **Amazon Developer Hackathon 2026, Alexa+ track.**
                                           core/ loan maths Â· SQLite memory
 ```
 
-- **`server/mcp_server.py`** is the Alexa+ add-on: 7 tools, 1 resource, and elicitation for missing details.
+- **`server/mcp_server.py`** is the Alexa+ add-on: 8 tools, 1 resource, and elicitation for missing details.
+- **`agents/pipeline.py`** is the multi-agent layer behind one tool, `review_loan_offer` ("should I take this loan?").
+  Alexa+ makes a single call; behind it a **supervisor** plans and re-plans which specialists to run:
+  a **loan analyst** (true cost), an **affordability** agent (skipped if the budget is unknown), and a **coach**
+  (questions to ask the lender and a lesson chosen from the findings). A **verifier** then checks that every
+  number in the spoken answer traces to the calculator, rejecting and replacing any draft that does not.
 - **`core/loan.py`** does all the maths deterministically (flat vs reducing interest, fees, true yearly
   rate via IRR, affordability). **Every number that is spoken comes from this calculator; no language
   model touches the figures.**
@@ -62,8 +67,8 @@ Open http://127.0.0.1:8080 and use the quick-start buttons, type, or tap the mic
 ## Tests
 
 ```bash
-python -m pytest                 # 24 unit tests: loan maths and the intent router
-python -m eval.smoke             # 16 end-to-end checks against a running server
+python -m pytest                 # 33 unit tests: loan maths, intent router, multi-agent pipeline and verifier
+python -m eval.smoke             # 21 end-to-end checks against a running server
 ```
 
 The end-to-end check also verifies the Alexa+ latency budget (under 500 ms; measured about 8 ms per tool call),
@@ -71,7 +76,11 @@ input validation, and that one user cannot log repayments on another user's loan
 
 ## Honest limitations
 
-- **No language-model layer yet.** Understanding is rule-based and explanations are templates. A model-backed
+- **The agents are not LLM-driven.** The supervisor's planner, the specialists and the composer are rule-based
+  code; what is real is the orchestration (planning and re-planning, chained steps, skipping a step when data is
+  missing) and the verifier guard. They sit behind plain function interfaces so a model-backed planner or composer
+  can replace them, and the verifier would still re-check every figure. No model has been run against this
+  (an attempt to enable Amazon Bedrock on a new account failed; see the friction log). A model-backed
   supervisor/specialist/verifier design is planned, with the calculator as the source of truth for all numbers.
 - **Not yet connected to real Alexa+.** Tested with the included simulator, not Amazon's simulator or a device.
 - **Authentication is a demo user.** In production the user id comes from the OAuth access token Alexa+ sends
@@ -84,7 +93,7 @@ input validation, and that one user cannot log repayments on another user's loan
 ```
 server/   MCP server (tools, resource, elicitation)
 core/     loan maths, memory, narration, lessons
-agents/   intent router
+agents/   intent router, multi-agent pipeline (supervisor, specialists, verifier)
 web/      simulated Alexa+ experience
 eval/     end-to-end smoke test
 tests/    unit tests

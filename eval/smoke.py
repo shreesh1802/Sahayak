@@ -73,6 +73,19 @@ async def main() -> None:
             check(f"explain_loan latency < {BUDGET_MS} ms", ms < BUDGET_MS, f"{ms:.0f} ms")
             check("reducing EMI is 8884.88", abs(d["cost"]["emi"] - 8884.88) < 0.01, str(d["cost"]["emi"]))
 
+            # multi-agent review: separate user, so its follow-up questions are counted on their own
+            before = len(asked)
+            res, d, ms = await call(s, "review_loan_offer", {"principal": 50000, "annual_rate": 24, "term_months": 12,
+                                                            "fees": 2000, "user_id": UID + "-review"})
+            check("review asked for rate type and budget", len(asked) - before == 2, f"{len(asked) - before} questions")
+            steps = [(t["agent"], t["action"]) for t in d.get("agent_trace", [])]
+            check("review ran supervisor, analyst, affordability, coach, verifier",
+                  {a for a, _ in steps} >= {"supervisor", "loan_analyst", "affordability", "coach", "verifier"},
+                  str(sorted({a for a, _ in steps})))
+            check("verifier approved every spoken number", ("verifier", "approved") in steps)
+            check("review gives questions for the lender", len(d.get("questions", [])) >= 3)
+            check(f"review latency < {BUDGET_MS} ms (excluding the two follow-ups)", ms < BUDGET_MS, f"{ms:.0f} ms incl. follow-up round trips")
+
             res, d, ms = await call(s, "check_affordability", {"new_emi": 4500, "user_id": UID})
             check("check_affordability asked for budget", any("income" in q.lower() for q in asked))
             check("affordability verdict returned", d.get("affordability", {}).get("verdict") in

@@ -23,6 +23,24 @@ def _find_amount(pattern: str, text: str) -> float | None:
     return _to_amount(m.group(1), m.group(2)) if m else None
 
 
+def _parse_offer(t: str) -> dict | None:
+    """Pull principal, rate, term, fees and (if stated) flat/reducing out of a loan offer."""
+    principal = _find_amount(r"(?:borrow|loan(?: of)?|lend|credit(?: of)?)\s*(?:of\s*)?" + _NUM, t) \
+        or _find_amount(_NUM + r"\s*(?:loan|rupees)?", t)
+    rate = re.search(r"(\d+(?:\.\d+)?)\s*(?:%|percent|per cent)", t)
+    term = re.search(r"(\d+)\s*(months?|years?|yrs?)", t)
+    if not (principal and rate and term):
+        return None
+    months = int(term.group(1)) * (12 if term.group(2).startswith("y") else 1)
+    args = {"principal": principal, "annual_rate": float(rate.group(1)), "term_months": months,
+            "fees": _find_amount(r"(?:fees?|processing)[^\d]{0,15}" + _NUM, t) or 0.0}
+    if "flat" in t:
+        args["rate_type"] = "flat"
+    elif "reducing" in t:
+        args["rate_type"] = "reducing"
+    return args
+
+
 @dataclass
 class Route:
     tool: str | None
@@ -72,6 +90,9 @@ def route(utterance: str) -> Route:
     if inc and exp:
         return Route("save_my_budget", {"monthly_income": inc, "monthly_expenses": exp})
 
+    if re.search(r"\b(should i|review|good idea|worth it|take it)\b", t) and _parse_offer(t):
+        return Route("review_loan_offer", _parse_offer(t))
+
     if re.search(r"\bafford|can i pay|too much\b", t):
         emi = _find_amount(r"(?:afford|pay)[^\d]{0,15}" + _NUM, t) or _find_amount(_NUM, t)
         if emi:
@@ -79,20 +100,10 @@ def route(utterance: str) -> Route:
         return Route(None, note="How much would the monthly payment be?")
 
     if re.search(r"\b(loan|borrow|lend|credit|emi|interest)\b", t):
-        principal = _find_amount(r"(?:borrow|loan(?: of)?|lend|credit(?: of)?)\s*(?:of\s*)?" + _NUM, t) \
-            or _find_amount(_NUM + r"\s*(?:loan|rupees)?", t)
-        rate = re.search(r"(\d+(?:\.\d+)?)\s*(?:%|percent|per cent)", t)
-        term = re.search(r"(\d+)\s*(months?|years?|yrs?)", t)
-        fees = _find_amount(r"(?:fees?|processing)[^\d]{0,15}" + _NUM, t) or 0.0
-        if principal and rate and term:
-            months = int(term.group(1)) * (12 if term.group(2).startswith(("y",)) else 1)
-            args = {"principal": principal, "annual_rate": float(rate.group(1)),
-                    "term_months": months, "fees": fees}
-            if "flat" in t:
-                args["rate_type"] = "flat"
-            elif "reducing" in t:
-                args["rate_type"] = "reducing"
-            return Route("explain_loan", args)
+        args = _parse_offer(t)
+        if args:
+            wants_review = re.search(r"\b(should i|review|good idea|worth it|take it|take this|take that)\b", t)
+            return Route("review_loan_offer" if wants_review else "explain_loan", args)
         return Route(None, note="Tell me the loan amount, the interest rate and how many months, "
                                 "for example: a loan of 50000 at 24 percent for 12 months.")
 

@@ -81,6 +81,8 @@
   .note.info { background: #0f2a3a; border-color: #1d5473; color: #bae6fd; }
   .prog { height: 8px; background: var(--panel2); border-radius: 4px; overflow: hidden; margin: 4px 0 10px; }
   .prog i { display: block; height: 100%; background: var(--accent); transition: width .5s; }
+  .sec { margin: 16px 0 6px; font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+  .qs { margin: 4px 0 8px; padding-left: 20px; font-size: 14px; } .qs li { margin: 4px 0; }
   .ok-card { text-align: center; padding: 30px 8px; }
   .ok-card .tick { width: 54px; height: 54px; border-radius: 50%; background: #14532d; color: var(--good); display: grid; place-items: center; margin: 0 auto 10px; font-size: 28px; }
 
@@ -162,12 +164,21 @@ function confirmCard(title, lines) {
   return `<div class="ok-card"><div class="tick">✓</div><div class="title">${esc(title)}</div>${lines.map(l => `<div class="tag">${l}</div>`).join('')}</div>`;
 }
 
-function render(c) {
-  if (!c) return;
-  let html = '';
-  if (c.tool === 'explain_loan') {
-    const x = c.cost, total = x.principal + x.total_interest + x.upfront_fees || 1;
-    html = `
+function affordHtml(a) {
+  const v = esc(a.verdict);
+  return `<div class="verdict ${v}">${v[0].toUpperCase() + v.slice(1)}</div>
+      ${row('Monthly income', fmt(a.monthly_income))}
+      ${row('Regular expenses', fmt(a.monthly_expenses))}
+      ${row('Existing loan payments', fmt(a.existing_emis))}
+      ${row('New payment', fmt(a.new_emi))}
+      ${row('Left after everything', `<b class="${a.surplus_after < 0 ? 'unaffordable' : ''}">${fmt(a.surplus_after)}</b>`)}
+      ${row('Loan payments / income', pct(a.emi_to_income_ratio))}
+      ${a.reasons.map(r => `<div class="note ${a.verdict === 'comfortable' ? 'info' : ''}">${esc(r)}</div>`).join('')}`;
+}
+
+function explainHtml(c) {
+  const x = c.cost, total = x.principal + x.total_interest + x.upfront_fees || 1;
+  return `
       <div class="big">${fmt(x.emi)} <small>per month · ${x.term_months} months</small></div>
       <div class="bar2" role="img" aria-label="Where your repayment goes">
         <i style="width:${x.principal / total * 100}%;background:var(--blue)"></i>
@@ -182,16 +193,27 @@ function render(c) {
       ${row('True yearly cost', `<b style="color:${x.effective_annual_rate > x.stated_annual_rate + 0.5 ? 'var(--bad)' : 'var(--good)'}">${pct(x.effective_annual_rate)}</b>`)}
       ${c.comparison.extra_cost_of_flat > 0 ? `<div class="note">Flat vs reducing at this rate: flat costs ${fmt(c.comparison.extra_cost_of_flat)} more.</div>` : ''}
       ${c.assumed_rate_type ? '<div class="note">Rate type assumed flat. Please confirm with your lender.</div>' : ''}`;
+}
+
+function reviewHtml(c) {
+  const sec = t => `<div class="sec">${t}</div>`;
+  return `<div class="title">Offer review</div>
+    ${sec('1 · True cost')}${explainHtml(c)}
+    ${sec('2 · Does it fit your budget?')}${c.affordability ? affordHtml(c.affordability)
+      : '<div class="note">Skipped: I do not have your income and expenses yet.</div>'}
+    ${sec('3 · Ask the lender')}<ol class="qs">${c.questions.map(q => `<li>${esc(q)}</li>`).join('')}</ol>
+    ${c.lesson ? `<div class="note info">Worth learning: ${esc(c.lesson.title)}. ${esc(c.lesson.quiz)}</div>` : ''}`;
+}
+
+function render(c) {
+  if (!c) return;
+  let html = '';
+  if (c.tool === 'explain_loan') {
+    html = explainHtml(c);
+  } else if (c.tool === 'review_loan_offer') {
+    html = reviewHtml(c);
   } else if (c.tool === 'check_affordability' && c.affordability) {
-    const a = c.affordability, v = esc(a.verdict);
-    html = `<div class="verdict ${v}">${v[0].toUpperCase() + v.slice(1)}</div>
-      ${row('Monthly income', fmt(a.monthly_income))}
-      ${row('Regular expenses', fmt(a.monthly_expenses))}
-      ${row('Existing loan payments', fmt(a.existing_emis))}
-      ${row('New payment', fmt(a.new_emi))}
-      ${row('Left after everything', `<b class="${a.surplus_after < 0 ? 'unaffordable' : ''}">${fmt(a.surplus_after)}</b>`)}
-      ${row('Loan payments / income', pct(a.emi_to_income_ratio))}
-      ${a.reasons.map(r => `<div class="note ${a.verdict === 'comfortable' ? 'info' : ''}">${esc(r)}</div>`).join('')}`;
+    html = affordHtml(c.affordability);
   } else if (c.tool === 'my_loans') {
     html = c.loans.length
       ? c.loans.map(l => `<div style="margin-bottom:12px"><div class="title" style="font-size:17px">#${l.number} ${esc(l.lender_label)}</div>
@@ -217,7 +239,16 @@ function render(c) {
   if (window.matchMedia('(max-width: 899px)').matches) card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
-function showTrace(t) {
+function agentLines(steps) {
+  const out = ['<span class="m">agents behind this one tool:</span>'];
+  for (const s of steps) {
+    const mark = s.ok ? '<span class="k">✓</span>' : '<span style="color:var(--bad)">✗</span>';
+    out.push(`  ${mark} ${esc(s.agent)} · ${esc(s.action)}${s.detail ? ' <span class="m">— ' + esc(s.detail) + '</span>' : ''}`);
+  }
+  return out;
+}
+
+function showTrace(t, steps) {
   if (!t) return;
   const args = JSON.stringify(t.arguments || {}, null, 0);
   const lines = [
@@ -230,6 +261,7 @@ function showTrace(t) {
     if (t.elicited) lines.push('<span class="m">  (server asked a follow-up, user answered)</span>');
     lines.push(`<span class="k">←</span> tools/call took ${esc(t.server_ms)} ms  <span class="m">(Alexa+ budget: 500 ms; excludes connection setup${t.elicited ? ' and time spent waiting for you' : ''})</span>`);
   }
+  if (steps && steps.length) lines.push(...agentLines(steps));
   lines.push(`<span class="m">${esc(t.protocol)}</span>`);
   trace.innerHTML = lines.join('\n');
 }
@@ -249,7 +281,7 @@ async function send(text) {
     session = d.awaiting_reply ? d.session : null;
     say(d.speech, 'bot', d.awaiting_reply ? 'ask' : '');
     render(d.card);
-    showTrace(d.trace);
+    showTrace(d.trace, d.card && d.card.agent_trace);
     $('#dot').className = 'dot ok';
   } catch (e) {
     typing(false);
@@ -285,7 +317,8 @@ if (SR) {
   });
 } else { $('#mic').style.display = 'none'; }
 
-[['Explain a loan', 'I was offered a loan of 50000 at 24 percent for 12 months with a fee of 2000'],
+[['Review an offer', 'should I take a loan of 50000 at 24 percent for 12 months with a fee of 2000'],
+ ['Explain a loan', 'I was offered a loan of 50000 at 24 percent for 12 months with a fee of 2000'],
  ['Tell my budget', 'my income is 25000 and my expenses are 14000'],
  ['Can I afford it?', 'can I afford 4500 a month'],
  ['Save a loan', 'add a loan called shop credit of 12000 at 18 percent for 12 months reducing'],

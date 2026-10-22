@@ -54,6 +54,16 @@ def test_offer_is_explained_not_saved():
     assert route("I was offered a loan of 50000 at 24 percent flat for 12 months").tool == "explain_loan"
 
 
+def test_should_i_take_it_goes_to_the_multi_agent_review():
+    r = route("should I take a loan of 50000 at 24 percent flat for 12 months with a fee of 2000")
+    assert r.tool == "review_loan_offer"
+    assert r.args == {"principal": 50_000, "annual_rate": 24, "term_months": 12, "fees": 2_000, "rate_type": "flat"}
+
+
+def test_review_without_numbers_is_not_guessed():
+    assert route("should I take a loan").tool is None
+
+
 def test_simple_intents():
     assert route("teach me something").tool == "next_lesson"
     assert route("show my loans").tool == "my_loans"
