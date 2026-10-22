@@ -79,7 +79,16 @@ Entries are written as they happened. Fields: task, steps, expected vs actual, s
 - **Suggestion:** support client `extensions` in the Python SDK (the 2.x line appears to add an `extensions` parameter,
   but 2.x also renamed `FastMCP`, see entry 6).
 
-## 10. Python 3.14: `pip install strands-agents mcp` stalled
+## 10. Following the quickstart's tunnel advice with the Python SDK gives `421 Invalid Host header`
+- **Task:** expose the server through a tunnel, as the Alexa+ quickstart suggests (it names `cloudflared`).
+- **Actual:** the Python MCP SDK's DNS-rebinding protection accepts only `localhost` Host headers by default, so every
+  request through a tunnel is refused with `421 Invalid Host header`. Nothing in the quickstart mentions it.
+- **Severity:** medium (a developer following the docs gets a confusing error from the first remote request).
+- **Workaround:** pass `TransportSecuritySettings(allowed_hosts=[...])` to `FastMCP`, naming the tunnel host. The server
+  now reads the host from an environment variable and refuses wildcards, so the protection stays on.
+- **Suggestion:** add that setting to the quickstart's local-development section.
+
+## 11. Python 3.14: `pip install strands-agents mcp` stalled
 - **Task:** install the MCP SDK and Strands Agents in a fresh venv on Python 3.14.
 - **Steps:** `pip install mcp strands-agents uvicorn boto3` (first with `boto3` listed separately, then without).
 - **Expected:** a normal install.

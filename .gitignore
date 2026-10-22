@@ -11,11 +11,10 @@ venv/
 *.sqlite
 smoke.db
 
-# Local run logs
-server_out.txt
-server_err.txt
-web_out.txt
-web_err.txt
+# Local run logs and scratch files
+*_out.txt
+*_err.txt
+pip*.txt
 
 # Secrets and environment
 .env

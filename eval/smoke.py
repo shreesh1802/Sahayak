@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 import time
 
@@ -24,7 +25,19 @@ failures: list[str] = []
 asked: list[str] = []
 
 
+in_callback = 0.0  # seconds spent answering the server's follow-up questions (the client's time, not the server's)
+
+
 async def on_elicit(_ctx, params):
+    global in_callback
+    started = time.perf_counter()
+    try:
+        return await _answer(params)
+    finally:
+        in_callback += time.perf_counter() - started
+
+
+async def _answer(params):
     asked.append(params.message)
     props = params.requestedSchema.get("properties", {})
     if "rate_type" in props:
@@ -39,15 +52,19 @@ def check(name: str, ok: bool, detail: str = "") -> None:
 
 
 async def call(session, tool: str, args: dict):
+    """Returns (result, data, ms) where ms is the round trip minus time the client spent answering follow-ups."""
+    before = in_callback
     t0 = time.perf_counter()
     res = await session.call_tool(tool, args)
-    ms = (time.perf_counter() - t0) * 1000
+    ms = (time.perf_counter() - t0 - (in_callback - before)) * 1000
     data = res.structuredContent or (json.loads(res.content[0].text) if res.content and not res.isError else {})
     return res, data, ms
 
 
 async def main() -> None:
-    async with streamablehttp_client(URL) as (r, w, _):
+    token = os.environ.get("SAHAYAK_MCP_TOKEN")
+    headers = {"Authorization": f"Bearer {token}"} if token else None
+    async with streamablehttp_client(URL, headers=headers) as (r, w, _):
         async with ClientSession(r, w, elicitation_callback=on_elicit) as s:
             init = await s.initialize()
             check("negotiates spec 2025-11-25", init.protocolVersion == "2025-11-25", init.protocolVersion)
@@ -98,7 +115,7 @@ async def main() -> None:
                   str(sorted({a for a, _ in steps})))
             check("verifier approved every spoken number", ("verifier", "approved") in steps)
             check("review gives questions for the lender", len(d.get("questions", [])) >= 3)
-            check(f"review latency < {BUDGET_MS} ms (excluding the two follow-ups)", ms < BUDGET_MS, f"{ms:.0f} ms incl. follow-up round trips")
+            check(f"review latency < {BUDGET_MS} ms (excluding the client's time answering follow-ups)", ms < BUDGET_MS, f"{ms:.0f} ms")
 
             res, d, ms = await call(s, "check_affordability", {"new_emi": 4500, "user_id": UID})
             check("check_affordability asked for budget", any("income" in q.lower() for q in asked))

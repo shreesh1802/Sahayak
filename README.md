@@ -76,12 +76,19 @@ Open http://127.0.0.1:8080 and use the quick-start buttons, type, or tap the mic
 ## Tests
 
 ```bash
-python -m pytest                 # 61 unit tests: loan maths, router, multi-agent pipeline, verifier, MCP App contract
+python -m pytest                 # 78 unit tests: loan maths, router, agents, verifier, MCP App contract, hardening
 python -m eval.smoke             # 25 end-to-end checks against a running server
 ```
 
 The end-to-end check also verifies the Alexa+ latency budget (under 500 ms; measured about 8 ms per tool call),
 input validation, and that one user cannot log repayments on another user's loan.
+
+## Public URL
+
+To reach the server from the internet (a tunnel, an access token, and the allowed-host setting the MCP SDK needs), see
+[docs/HOSTING.md](docs/HOSTING.md). It also explains why that is a protected demo endpoint and **not** real Alexa+
+account linking. On Windows, use `127.0.0.1` rather than `localhost` in local URLs (`localhost` added about 280 ms
+per connection in testing).
 
 ## Honest limitations
 

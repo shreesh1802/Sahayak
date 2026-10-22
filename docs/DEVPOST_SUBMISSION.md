@@ -53,7 +53,7 @@ client and as an MCP Apps host: it discovers each tool's view, fetches it from t
 iframe (the view cannot reach the page) and runs the host side of the handshake. A "Behind the scenes" panel shows
 every message. The host is my own implementation of the part of the protocol this app needs, not Amazon's.
 
-**Quality checks.** 61 unit tests cover the loan maths, the intent router, the conversation memory, the multi-agent
+**Quality checks.** 78 unit tests cover the loan maths, the intent router, the conversation memory, the multi-agent
 pipeline (including a test that a composer inventing a number is rejected by the verifier), and the MCP App contract
 (every tool declares its screen, the resource has the right MIME type, the view is self-contained and escapes its
 text). 25 end-to-end checks run a real MCP client against the live server, covering the elicitation round trip,
@@ -109,6 +109,9 @@ Not applicable: built during the submission period.
 - AWS: credit codes were exhausted before the deadline, and a brand-new account hit `Operation not allowed` in the
   Bedrock playground with no explanation of what to fix.
 - Tool changes only apply after `alexa-ai deploy`, which slows the edit-test loop.
+- The quickstart suggests a tunnel (`cloudflared`) for local development, but with the Python MCP SDK every request
+  through a tunnel fails with `421 Invalid Host header` (its DNS-rebinding protection allows only `localhost`). The fix
+  is one setting, `allowed_hosts`, but it is not mentioned anywhere I looked.
 - MCP Apps documentation is split: the hackathon page links the API overview, which does not give the metadata keys,
   MIME type or handshake. Those are only in the spec file in the ext-apps repository. The spec also contradicts itself
   in places (the view's `initialize` field is `appCapabilities` in the text and `capabilities` in the example; the

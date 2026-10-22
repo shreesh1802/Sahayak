@@ -15,6 +15,7 @@ from mcp.server.fastmcp import Context, FastMCP
 from pydantic import BaseModel, Field
 
 from agents.pipeline import State, review
+from server.hardening import TokenGate, security_settings
 from core import lessons as lesson_bank
 from core import store
 from core.loan import (RATE_TYPES, check_affordability as _affordability,
@@ -42,6 +43,7 @@ mcp = FastMCP(
     host=os.environ.get("HOST", "127.0.0.1"),
     port=int(os.environ.get("PORT", "8000")),
     stateless_http=False,  # elicitation needs a session
+    transport_security=security_settings(os.environ.get("SAHAYAK_ALLOWED_HOSTS", "")),  # None = localhost only
 )
 
 
@@ -222,7 +224,14 @@ def loans_resource(user_id: str) -> str:
 
 
 def main() -> None:
-    mcp.run(transport="streamable-http")
+    token = os.environ.get("SAHAYAK_ACCESS_TOKEN", "")
+    if not token:
+        mcp.run(transport="streamable-http")
+        return
+    import uvicorn  # same server, with the bearer-token gate in front of it (see server/hardening.py)
+    app = mcp.streamable_http_app()
+    app.add_middleware(TokenGate, token=token)
+    uvicorn.run(app, host=mcp.settings.host, port=mcp.settings.port)
 
 
 if __name__ == "__main__":

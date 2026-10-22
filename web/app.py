@@ -27,6 +27,8 @@ from agents.router import (_NUM, MIN_EMI, MIN_MONTHLY, Route, _to_amount, low_no
                            words_to_digits)
 
 MCP_URL = os.environ.get("SAHAYAK_MCP_URL", "http://127.0.0.1:8000/mcp")
+# Only needed when the MCP server is run with SAHAYAK_ACCESS_TOKEN (for example behind a public tunnel).
+MCP_HEADERS = {"Authorization": f"Bearer {os.environ['SAHAYAK_MCP_TOKEN']}"} if os.environ.get("SAHAYAK_MCP_TOKEN") else None
 HERE = Path(__file__).parent
 
 
@@ -100,7 +102,7 @@ async def _run_tool(turn: Turn, tool: str, args: dict, user_id: str):
         content = _answer_from_text(params.requestedSchema, text)
         return ElicitResult(action="accept" if content else "decline", content=content or None)
 
-    async with streamablehttp_client(MCP_URL) as (read, write, _):
+    async with streamablehttp_client(MCP_URL, headers=MCP_HEADERS) as (read, write, _):
         async with ClientSession(read, write, elicitation_callback=on_elicit) as session:
             await session.initialize()
             started = time.perf_counter()
